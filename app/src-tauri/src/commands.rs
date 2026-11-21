@@ -6,7 +6,7 @@ use indexfox_core::{ResourceMode, SearchMode, SortKey, SourceLocator, SourceScan
 use indexfox_index::IndexDb;
 use indexfox_query::{search_cancellable, SearchOptions, SearchResponse};
 use serde::{Deserialize, Serialize};
-use tauri::{AppHandle, Manager, State};
+use tauri::{AppHandle, Manager, State, WebviewWindow};
 
 use crate::scheduler::{Database, RuntimeSnapshot};
 use crate::state::AppState;
@@ -234,6 +234,42 @@ pub async fn list_sources(state: State<'_, AppState>) -> Result<Vec<SourceSummar
 }
 
 #[tauri::command]
+pub async fn pick_index_folder(
+    app: AppHandle,
+    window: WebviewWindow,
+) -> Result<Option<String>, String> {
+    let (sender, mut result) = tauri::async_runtime::channel(1);
+    let home = app.path().home_dir().ok();
+    let parent = window.clone();
+    window
+        .run_on_main_thread(move || {
+            let mut dialog = rfd::AsyncFileDialog::new()
+                .set_title("选择索引目录")
+                .set_parent(&parent);
+            if let Some(home) = home {
+                dialog = dialog.set_directory(home);
+            }
+            tauri::async_runtime::spawn(async move {
+                let _ = sender.try_send(dialog.pick_folder().await);
+            });
+        })
+        .map_err(|error| error.to_string())?;
+    result
+        .recv()
+        .await
+        .ok_or_else(|| "无法打开文件夹选择器。".to_string())?
+        .map(|folder| {
+            folder
+                .path()
+                .to_path_buf()
+                .into_os_string()
+                .into_string()
+                .map_err(|_| "目录路径包含无法识别的字符。".to_string())
+        })
+        .transpose()
+}
+
+#[tauri::command]
 pub async fn index_folder(path: String, state: State<'_, AppState>) -> Result<i64, String> {
     let path = PathBuf::from(path.trim());
     if !path.is_absolute() {
@@ -247,6 +283,15 @@ pub async fn index_folder(path: String, state: State<'_, AppState>) -> Result<i6
     .await?;
     state.scheduler.wake();
     Ok(job_id)
+}
+
+#[tauri::command]
+pub async fn remove_source(source_id: i64, app: AppHandle) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<AppState>().scheduler.remove_source(source_id)
+    })
+    .await
+    .map_err(|error| error.to_string())?
 }
 
 #[tauri::command]

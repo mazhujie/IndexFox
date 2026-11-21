@@ -23,6 +23,7 @@
 | notify | 8.2.2 | CC0-1.0 |
 | windows-sys | 0.61.2 | MIT OR Apache-2.0 |
 | tray-icon（Tauri 托盘功能） | 0.25.1 | MIT OR Apache-2.0 |
+| rfd（原生文件夹选择器） | 0.17.2 | MIT |
 
 传递依赖的许可证以 `Cargo.lock` 与 <https://crates.io> 元数据为准；发布前应生成完整清单（例如 `cargo about`/`cargo deny`）。
 

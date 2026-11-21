@@ -187,6 +187,24 @@ pub fn system_fonts() -> Vec<String> {
 /// [`close_to_tray`] refuses to hide without a live tray, so a failed tray
 /// degrades to "close exits" rather than an unreachable window.
 pub fn setup(app: &mut tauri::App) -> tauri::Result<()> {
+    #[cfg(windows)]
+    if let Some(hwnd) = app
+        .get_webview_window("main")
+        .and_then(|window| window.hwnd().ok())
+    {
+        use windows_sys::Win32::Graphics::Dwm::{DwmSetWindowAttribute, DWMWA_CAPTION_COLOR};
+
+        // COLORREF stores BGR. Match the search toolbar's #161922 on Windows 11.
+        let color = 0x0022_1916_u32;
+        unsafe {
+            DwmSetWindowAttribute(
+                hwnd.0,
+                DWMWA_CAPTION_COLOR as u32,
+                (&color as *const u32).cast(),
+                std::mem::size_of::<u32>() as u32,
+            );
+        }
+    }
     let state = app.state::<DesktopState>();
     if state.settings().close_to_tray {
         if let Err(error) = ensure_tray(app.handle(), state.inner()) {

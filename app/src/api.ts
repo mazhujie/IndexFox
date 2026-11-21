@@ -66,8 +66,14 @@ export const api = {
   listSources(): Promise<SourceInfo[]> {
     return invoke<SourceInfo[]>("list_sources");
   },
+  pickIndexFolder(): Promise<string | null> {
+    return invoke<string | null>("pick_index_folder");
+  },
   indexFolder(path: string): Promise<number> {
     return invoke<number>("index_folder", { path });
+  },
+  removeSource(sourceId: number): Promise<void> {
+    return invoke<void>("remove_source", { sourceId });
   },
   previewText(fileId: number, chunkId: number | null): Promise<PreviewText> {
     return invoke<PreviewText>("preview_text", { fileId, chunkId });

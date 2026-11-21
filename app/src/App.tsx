@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent as ReactKeyboardEvent } from "react";
 import { api, errorMessage, parseErrorPosition } from "./api";
+import indexFoxIcon from "./assets/indexfox-icon.png";
 import { HistoryPopover } from "./components/HistoryPopover";
 import { PreviewPane } from "./components/PreviewPane";
 import { ResultsPane } from "./components/ResultsPane";
@@ -112,7 +113,7 @@ export default function App() {
   const [sourceError, setSourceError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [sourcePath, setSourcePath] = useState("");
-  const [indexing, setIndexing] = useState(false);
+  const [sourceBusy, setSourceBusy] = useState(false);
   const [indexError, setIndexError] = useState<string | null>(null);
   const [runtime, setRuntime] = useState<IndexRuntime | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -131,6 +132,7 @@ export default function App() {
   const [pdfView, setPdfView] = useState<"page" | "text">("page");
   const [pdfPageOverride, setPdfPageOverride] = useState<number | null>(null);
 
+  const sourceListTokenRef = useRef(0);
   const requestCounterRef = useRef(1);
   const activeRequestRef = useRef<{
     id: number;
@@ -144,11 +146,15 @@ export default function App() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   const loadSources = useCallback(async () => {
+    const token = sourceListTokenRef.current + 1;
+    sourceListTokenRef.current = token;
     try {
       const list = await api.listSources();
+      if (sourceListTokenRef.current !== token) return;
       setSources(list);
       setSourceError(null);
     } catch (error) {
+      if (sourceListTokenRef.current !== token) return;
       setSourceError(`来源列表加载失败：${errorMessage(error)}`);
     }
   }, []);
@@ -412,16 +418,13 @@ export default function App() {
     patchDraft({ sourceId });
   }
 
-  async function handleAddSource(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const path = sourcePath.trim();
-    if (!path) {
-      setIndexError("请输入目录绝对路径。");
-      return;
-    }
-    setIndexing(true);
+  async function addSource(manualPath?: string) {
+    if (sourceBusy) return;
+    setSourceBusy(true);
     setIndexError(null);
     try {
+      const path = manualPath ?? (await api.pickIndexFolder());
+      if (path === null) return;
       await api.indexFolder(path);
       setSourcePath("");
       setAddOpen(false);
@@ -429,7 +432,39 @@ export default function App() {
     } catch (error) {
       setIndexError(`目录索引失败：${errorMessage(error)}`);
     } finally {
-      setIndexing(false);
+      setSourceBusy(false);
+    }
+  }
+
+  async function handleRemoveSource(source: SourceInfo) {
+    if (sourceBusy) return;
+    if (
+      !window.confirm(
+        `移除索引目录“${source.root_path}”？\n将清理该目录的索引和任务，保留原始文件。`,
+      )
+    ) {
+      return;
+    }
+    setSourceBusy(true);
+    setIndexError(null);
+    try {
+      await api.removeSource(source.id);
+      setSources((previous) => previous.filter((item) => item.id !== source.id));
+      setDraft((previous) => previous.sourceId === source.id ? { ...previous, sourceId: null } : previous);
+      cancelActiveRequest();
+      setCommitted(null);
+      setResponse(null);
+      setSearched(false);
+      setSearchLoading(false);
+      setSearchError(null);
+      setQueryError(null);
+      setCancelled(false);
+      applySelection(null);
+      await loadSources();
+    } catch (error) {
+      setIndexError(`移除目录失败：${errorMessage(error)}`);
+    } finally {
+      setSourceBusy(false);
     }
   }
 
@@ -461,12 +496,16 @@ export default function App() {
 
   function handleHistoryApply(item: HistoryItem) {
     const filters = parseHistoryFilters(item.filters_json);
+    const requestedSourceId = filters.sourceId ?? null;
     setDraft({
       query: item.query_text,
       mode: normalizeMode(item.search_mode),
       caseSensitive: filters.caseSensitive ?? false,
       sort: (filters.sort ?? DEFAULT_SORT) as SortKey,
-      sourceId: filters.sourceId ?? null,
+      sourceId:
+        requestedSourceId !== null && sources.some((source) => source.id === requestedSourceId)
+          ? requestedSourceId
+          : null,
       extensions: filters.extensions ?? [],
     });
     setHistoryOpen(false);
@@ -487,27 +526,9 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <header className="app-titlebar">
-        <div className="brand">
-          <span className="brand-mark" aria-hidden="true">
-            狐
-          </span>
-          <div className="brand-text">
-            <span className="brand-name">IndexFox</span>
-            <span className="brand-cn">索引狐</span>
-          </div>
-        </div>
-        <div className="titlebar-badges">
-          <span className="pill">纯本地离线</span>
-          <span className="pill">原始文件只读</span>
-          <button type="button" className="mini-button" onClick={() => setSettingsOpen(true)}>
-            设置
-          </button>
-        </div>
-      </header>
-
       <section className="search-header" aria-label="检索条件">
         <form className="search-form" onSubmit={handleSubmit} role="search">
+          <img className="search-brand-mark" src={indexFoxIcon} alt="" aria-hidden="true" />
           <div className="search-input-wrap">
             <span className="search-icon" aria-hidden="true">
               ⌕
@@ -579,6 +600,13 @@ export default function App() {
               取消
             </button>
           )}
+          <button
+            type="button"
+            className="mini-button search-settings"
+            onClick={() => setSettingsOpen(true)}
+          >
+            设置
+          </button>
         </form>
 
         <div className="search-controls">
@@ -720,8 +748,18 @@ export default function App() {
           }}
           sourcePath={sourcePath}
           onSourcePathChange={setSourcePath}
-          onSubmitPath={(event) => void handleAddSource(event)}
-          indexing={indexing}
+          onSubmitPath={(event) => {
+            event.preventDefault();
+            const path = sourcePath.trim();
+            if (!path) {
+              setIndexError("请输入目录绝对路径。");
+              return;
+            }
+            void addSource(path);
+          }}
+          onPickFolder={() => void addSource()}
+          onRemoveSource={(source) => void handleRemoveSource(source)}
+          busy={sourceBusy}
           indexError={indexError}
           runtime={runtime}
           onReload={() => void loadSources()}

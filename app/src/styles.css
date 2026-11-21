@@ -129,61 +129,6 @@ mark.hit-mark.active {
   overflow: hidden;
 }
 
-.app-titlebar {
-  flex: 0 0 auto;
-  height: 38px;
-  padding: 0 14px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  background: var(--bg-titlebar);
-  border-bottom: 1px solid var(--border);
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-width: 0;
-}
-
-.brand-mark {
-  width: 22px;
-  height: 22px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 6px;
-  background: linear-gradient(135deg, #fb923c, #ea580c);
-  color: #fff;
-  font-weight: 800;
-  font-size: 13px;
-  box-shadow: 0 2px 8px rgba(249, 115, 22, 0.35);
-}
-
-.brand-text {
-  display: flex;
-  align-items: baseline;
-  gap: 7px;
-}
-
-.brand-name {
-  font-weight: 700;
-  letter-spacing: 0.01em;
-}
-
-.brand-cn {
-  color: var(--text-muted);
-  font-size: 12px;
-}
-
-.titlebar-badges {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
 .pill {
   display: inline-flex;
   align-items: center;
@@ -218,6 +163,19 @@ mark.hit-mark.active {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.search-brand-mark {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border-radius: 6px;
+  object-fit: contain;
+}
+
+.search-settings {
+  height: 30px;
+  padding: 0 10px;
 }
 
 .search-input-wrap {
@@ -649,6 +607,10 @@ kbd {
   gap: 7px;
 }
 
+.source-path-toggle {
+  align-self: flex-start;
+}
+
 .add-source-form {
   padding: 9px;
   display: flex;
@@ -764,6 +726,28 @@ kbd {
   display: flex;
   flex-direction: column;
   gap: 6px;
+}
+
+.source-row {
+  display: flex;
+  align-items: stretch;
+  gap: 4px;
+}
+
+.source-row .source-card {
+  flex: 1 1 auto;
+  width: auto;
+}
+
+.source-remove {
+  flex: 0 0 auto;
+  padding: 0 8px;
+}
+
+.source-remove:hover:not(:disabled) {
+  color: #fca5a5;
+  border-color: rgba(239, 68, 68, 0.55);
+  background: var(--red-soft);
 }
 
 .source-card {
@@ -1704,7 +1688,7 @@ kbd {
 }
 
 @media (max-width: 720px) {
-  .titlebar-badges {
+  .search-brand-mark {
     display: none;
   }
 

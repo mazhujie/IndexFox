@@ -21,7 +21,7 @@ use std::time::{Duration, Instant};
 
 use indexfox_cli::pipeline::{index_registered_source, IndexReport};
 use indexfox_core::{ResourceMode, SourceKind, SourceScanConfig};
-use indexfox_index::{IndexDb, IndexJobRecord, SourceRecord};
+use indexfox_index::{IndexDb, IndexError, IndexJobRecord, SourceRecord};
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
 use serde::Serialize;
 
@@ -478,6 +478,37 @@ impl IndexScheduler {
         result
     }
 
+    pub fn remove_source(&self, source_id: i64) -> Result<(), String> {
+        let inner = &self.inner;
+        let _gate = lock(&inner.job_gate);
+        for job in lock(&inner.active)
+            .values()
+            .filter(|job| job.source_id == source_id)
+        {
+            job.control.cancel();
+        }
+
+        // shortcut: a blocked network scan may need more time to exit, retry once it stops.
+        let deadline = Instant::now() + Duration::from_secs(5);
+        let mut seen = 0;
+        while lock(&inner.active)
+            .values()
+            .any(|job| job.source_id == source_id)
+        {
+            let remaining = deadline.saturating_duration_since(Instant::now());
+            if remaining.is_zero() {
+                return Err("目录的索引任务正在停止，请稍后重试移除。".into());
+            }
+            inner.wait_for_change(&mut seen, Some(remaining));
+        }
+        inner.try_with_database(|db| {
+            db.delete_source(source_id)
+                .map_err(|error| error.to_string())
+        })?;
+        inner.wake();
+        Ok(())
+    }
+
     pub fn snapshot(&self) -> RuntimeSnapshot {
         let active = lock(&self.inner.active)
             .values()
@@ -743,6 +774,7 @@ fn next_deadline(
 }
 
 fn queue_due(inner: &Inner, schedule: &mut HashMap<i64, Schedule>, now: Instant) {
+    let _gate = lock(&inner.job_gate);
     let active_sources: HashSet<i64> = lock(&inner.active)
         .values()
         .map(|job| job.source_id)
@@ -779,6 +811,14 @@ fn queue_due(inner: &Inner, schedule: &mut HashMap<i64, Schedule>, now: Instant)
         let retry = entry.retry_job.take();
         let queued = if let Some((job_id, attempt_count, error)) = retry {
             match inner.with_database(|db| {
+                // The schedule may predate a source removal and its job ID may have been reused.
+                if db
+                    .source_by_id(source_id)
+                    .map_err(|error| error.to_string())?
+                    .is_none()
+                {
+                    return Ok(());
+                }
                 db.update_index_job(job_id, "queued", attempt_count, Some(&error))
                     .map_err(|error| format!("cannot requeue job {job_id}: {error}"))
             }) {
@@ -805,10 +845,9 @@ fn queue_due(inner: &Inner, schedule: &mut HashMap<i64, Schedule>, now: Instant)
 }
 
 fn queue_source_scan(inner: &Inner, source_id: i64) -> Result<(), String> {
-    inner.with_database(|db| {
-        db.queue_source_scan(source_id, false)
-            .map(|_| ())
-            .map_err(|error| format!("cannot queue source {source_id}: {error}"))
+    inner.with_database(|db| match db.queue_source_scan(source_id, false) {
+        Ok(_) | Err(IndexError::SourceNotFound(_)) => Ok(()),
+        Err(error) => Err(format!("cannot queue source {source_id}: {error}")),
     })
 }
 
@@ -931,12 +970,12 @@ fn spawn_worker(inner: Arc<Inner>, sender: Sender<Completion>, pending: PendingJ
             worker_inner.wake();
         });
     if let Err(error) = spawned {
-        inner.finish_job(job_id);
         let message = format!("cannot start index worker for source {source_id}: {error}");
         let _ = inner.with_database(|db| {
             db.update_index_job(job_id, "failed", attempt_count, Some(&message))
                 .map_err(|error| error.to_string())
         });
+        inner.finish_job(job_id);
         inner.set_last_error(message.clone());
         let _ = sender.send(Completion {
             source_id,
@@ -1168,6 +1207,38 @@ mod tests {
         let recovered = db.claim_source_scan().unwrap().unwrap();
         assert_eq!(recovered.id, job_id);
         assert_eq!(recovered.kind, "rebuild");
+    }
+
+    #[test]
+    fn removing_source_cancels_its_worker_and_keeps_original_files() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("index.db");
+        let original = dir.path().join("original.txt");
+        std::fs::write(&original, "original contents").unwrap();
+        let db = IndexDb::open(&path).unwrap();
+        let source = indexfox_cli::pipeline::register_source(&db, dir.path()).unwrap();
+        let other_source = db.ensure_source(SourceKind::Local, "/other").unwrap();
+        db.queue_source_scan(source, false).unwrap();
+        db.queue_source_scan(other_source, false).unwrap();
+        let location = DatabaseLocation::load(path, dir.path().join("location.json"));
+        let scheduler = IndexScheduler::new(Arc::new(RwLock::new(location)));
+        let pending = claim_and_register(&scheduler.inner).unwrap().unwrap();
+        assert_eq!(pending.job.source_id, source);
+        scheduler.set_paused(true);
+        let (sender, receiver) = mpsc::channel();
+        spawn_worker(Arc::clone(&scheduler.inner), sender, pending);
+
+        scheduler.remove_source(source).unwrap();
+
+        let completion = receiver.recv_timeout(Duration::from_secs(1)).unwrap();
+        assert!(matches!(completion.outcome, Outcome::Cancelled));
+        assert!(db.source_by_id(source).unwrap().is_none());
+        assert!(db.index_jobs_for_source(source).unwrap().is_empty());
+        assert_eq!(db.index_jobs_for_source(other_source).unwrap().len(), 1);
+        assert_eq!(
+            std::fs::read_to_string(original).unwrap(),
+            "original contents"
+        );
     }
 
     fn test_schedule(now: Instant) -> Schedule {

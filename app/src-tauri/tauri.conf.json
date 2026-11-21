@@ -13,6 +13,7 @@
     "windows": [
       {
         "title": "IndexFox · 索引狐",
+        "theme": "dark",
         "width": 1200,
         "height": 760,
         "minWidth": 900,

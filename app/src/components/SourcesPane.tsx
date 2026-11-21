@@ -12,7 +12,9 @@ interface SourcesPaneProps {
   sourcePath: string;
   onSourcePathChange: (value: string) => void;
   onSubmitPath: (event: FormEvent<HTMLFormElement>) => void;
-  indexing: boolean;
+  onPickFolder: () => void;
+  onRemoveSource: (source: SourceInfo) => void;
+  busy: boolean;
   indexError: string | null;
   runtime: IndexRuntime | null;
   onReload: () => void;
@@ -36,7 +38,9 @@ export function SourcesPane({
   sourcePath,
   onSourcePathChange,
   onSubmitPath,
-  indexing,
+  onPickFolder,
+  onRemoveSource,
+  busy,
   indexError,
   runtime,
   onReload,
@@ -61,30 +65,39 @@ export function SourcesPane({
           <button
             type="button"
             className="mini-button accent"
-            onClick={onToggleAdd}
-            aria-expanded={addOpen}
+            onClick={onPickFolder}
+            disabled={busy}
           >
-            {addOpen ? "收起" : "+ 添加目录"}
+            添加目录
           </button>
         </div>
       </div>
 
       <div className="pane-body source-body">
+        <button
+          type="button"
+          className="mini-button source-path-toggle"
+          onClick={onToggleAdd}
+          aria-expanded={addOpen}
+          disabled={busy}
+        >
+          {addOpen ? "收起路径输入" : "输入路径"}
+        </button>
         {addOpen && (
           <form className="add-source-form" onSubmit={onSubmitPath}>
-            <label htmlFor="new-source-path">目录绝对路径</label>
+            <label htmlFor="new-source-path">输入 UNC、WSL 或绝对路径</label>
             <input
               id="new-source-path"
               className="text-input mono"
               value={sourcePath}
               onChange={(event) => onSourcePathChange(event.target.value)}
-              placeholder="D:\Docs 或 /home/me/docs"
+              placeholder={'\\\\server\\share 或 D:\\Docs 或 /home/me/docs'}
               autoComplete="off"
-              disabled={indexing}
+              disabled={busy}
             />
             <p className="form-hint">将目录加入后台索引队列。</p>
-            <button type="submit" className="primary-button small" disabled={indexing}>
-              {indexing ? "正在添加…" : "添加并索引"}
+            <button type="submit" className="primary-button small" disabled={busy}>
+              {busy ? "正在添加…" : "添加并索引"}
             </button>
           </form>
         )}
@@ -118,36 +131,47 @@ export function SourcesPane({
         {sources.length === 0 && !sourceError ? (
           <div className="pane-empty">
             <p>还没有索引目录。</p>
-            <p className="muted">使用“添加目录”输入本地路径，开始建立离线索引。</p>
+            <p className="muted">点击“添加目录”选择文件夹，或用“输入路径”手动填写。</p>
           </div>
         ) : (
           <div className="source-list">
             {sources.map((source) => (
-              <button
-                key={source.id}
-                type="button"
-                className={`source-card ${selectedSourceId === source.id ? "active" : ""}`}
-                onClick={() => onSelectSource(source.id)}
-                aria-pressed={selectedSourceId === source.id}
-              >
-                <span className="source-title">
-                  <span className="source-name mono">{source.root_path}</span>
-                  <span
-                    className={`status-dot ${source.online_state}`}
-                    title={onlineLabel(source.online_state)}
-                    aria-label={onlineLabel(source.online_state)}
-                  />
-                </span>
-                <span className="source-meta">
-                  <span>{onlineLabel(source.online_state)}</span>
-                  {runtime?.active.filter((job) => job.sourceId === source.id).map((job) => (
-                    <span key={job.jobId}>
-                      {job.total > 0 ? `${job.processed} / ${job.total}` : "正在枚举"}
-                    </span>
-                  ))}
-                  {!source.enabled && <span className="tag tag-warn">已停用</span>}
-                </span>
-              </button>
+              <div className="source-row" key={source.id}>
+                <button
+                  type="button"
+                  className={`source-card ${selectedSourceId === source.id ? "active" : ""}`}
+                  onClick={() => onSelectSource(source.id)}
+                  aria-pressed={selectedSourceId === source.id}
+                >
+                  <span className="source-title">
+                    <span className="source-name mono">{source.root_path}</span>
+                    <span
+                      className={`status-dot ${source.online_state}`}
+                      title={onlineLabel(source.online_state)}
+                      aria-label={onlineLabel(source.online_state)}
+                    />
+                  </span>
+                  <span className="source-meta">
+                    <span>{onlineLabel(source.online_state)}</span>
+                    {runtime?.active.filter((job) => job.sourceId === source.id).map((job) => (
+                      <span key={job.jobId}>
+                        {job.total > 0 ? `${job.processed} / ${job.total}` : "正在枚举"}
+                      </span>
+                    ))}
+                    {!source.enabled && <span className="tag tag-warn">已停用</span>}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  className="mini-button source-remove"
+                  aria-label={`移除 ${source.root_path}`}
+                  title="移除索引来源（原始文件会保留）"
+                  disabled={busy}
+                  onClick={() => onRemoveSource(source)}
+                >
+                  移除
+                </button>
+              </div>
             ))}
           </div>
         )}

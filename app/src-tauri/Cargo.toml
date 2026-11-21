@@ -24,9 +24,10 @@ indexfox-extract = { path = "../../crates/indexfox-extract", features = ["pdfium
 indexfox-cli = { path = "../../crates/indexfox-cli", default-features = false }
 tempfile = "3"
 notify = "8.2"
+rfd = { version = "0.17", default-features = false, features = ["gtk3"] }
 
 [target.'cfg(windows)'.dependencies]
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi"] }
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Dwm", "Win32_Graphics_Gdi"] }
 
 [features]
 default = []

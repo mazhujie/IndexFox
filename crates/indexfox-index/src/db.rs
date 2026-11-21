@@ -206,7 +206,12 @@ impl IndexDb {
             return Ok(id);
         }
         self.conn.execute(
-            "INSERT INTO sources(kind, root_path) VALUES (?1, ?2)",
+            "INSERT INTO sources(id, kind, root_path)
+             VALUES (1 + MAX(
+                COALESCE((SELECT MAX(id) FROM sources), 0),
+                COALESCE((SELECT CAST(value AS INTEGER) FROM app_meta
+                          WHERE key = 'source_id_high_watermark'), 0)
+             ), ?1, ?2)",
             params![kind.as_str(), root_path],
         )?;
         Ok(self.conn.last_insert_rowid())
@@ -358,7 +363,9 @@ impl IndexDb {
     /// Chunk rows, FTS and short grams follow `chunks.file_id ON DELETE
     /// CASCADE` when the files are deleted.
     pub fn delete_source(&mut self, source_id: i64) -> Result<()> {
-        let tx = self.conn.transaction()?;
+        let tx = self
+            .conn
+            .transaction_with_behavior(TransactionBehavior::Immediate)?;
         let exists: i64 = tx.query_row(
             "SELECT EXISTS(SELECT 1 FROM sources WHERE id = ?1)",
             params![source_id],
@@ -367,6 +374,12 @@ impl IndexDb {
         if exists == 0 {
             return Err(IndexError::SourceNotFound(source_id));
         }
+        // Saved search filters and background events can still reference deleted IDs.
+        tx.execute(
+            "INSERT INTO app_meta(key, value) VALUES ('source_id_high_watermark', ?1)
+             ON CONFLICT(key) DO UPDATE SET value = MAX(CAST(value AS INTEGER), ?1)",
+            [source_id],
+        )?;
         tx.execute(
             "DELETE FROM index_jobs
              WHERE source_id = ?1
@@ -1762,6 +1775,8 @@ mod tests {
             db.delete_source(source_a),
             Err(IndexError::SourceNotFound(id)) if id == source_a
         ));
+        db.delete_source(source_b).unwrap();
+        assert!(db.ensure_source(SourceKind::Local, "/new").unwrap() > source_b);
     }
 
     #[test]
