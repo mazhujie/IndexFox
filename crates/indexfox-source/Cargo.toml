@@ -1,0 +1,9 @@
+[package]
+name = "indexfox-source"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+indexfox-core = { workspace = true }
+walkdir = { workspace = true }
+thiserror = { workspace = true }

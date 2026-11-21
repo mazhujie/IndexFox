@@ -1,0 +1,60 @@
+[package]
+name = "indexfox-integration"
+version = "0.1.0"
+edition = "2021"
+publish = false
+
+[lib]
+path = "tests/support/lib.rs"
+
+[dev-dependencies]
+indexfox-core = { workspace = true }
+indexfox-extract = { workspace = true }
+indexfox-index = { workspace = true }
+indexfox-query = { workspace = true }
+indexfox-cli = { workspace = true }
+encoding_rs = { workspace = true }
+serde_json = { workspace = true }
+tempfile = "3"
+zip = { workspace = true }
+
+[workspace]
+resolver = "2"
+members = [
+    "crates/indexfox-core",
+    "crates/indexfox-source",
+    "crates/indexfox-extract",
+    "crates/indexfox-index",
+    "crates/indexfox-query",
+    "crates/indexfox-cli",
+]
+exclude = ["app/src-tauri"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.80"
+
+[workspace.dependencies]
+indexfox-core = { path = "crates/indexfox-core" }
+indexfox-source = { path = "crates/indexfox-source" }
+indexfox-extract = { path = "crates/indexfox-extract" }
+indexfox-index = { path = "crates/indexfox-index" }
+indexfox-query = { path = "crates/indexfox-query" }
+indexfox-cli = { path = "crates/indexfox-cli" }
+
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+thiserror = "2"
+rusqlite = { version = "0.32", features = ["bundled"] }
+encoding_rs = "0.8"
+zip = { version = "2", default-features = false, features = ["deflate"] }
+quick-xml = "0.36"
+walkdir = "2"
+clap = { version = "4", features = ["derive"] }
+chrono = { version = "0.4", default-features = false, features = ["clock"] }
+pdfium-render = "0.8"
+
+[profile.release]
+lto = "thin"
+strip = true

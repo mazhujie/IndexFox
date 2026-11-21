@@ -1,0 +1,11 @@
+[package]
+name = "indexfox-query"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+indexfox-core = { workspace = true }
+indexfox-index = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }

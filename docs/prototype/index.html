@@ -1,0 +1,3449 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>IndexFox · 索引狐 — V1.0 交互原型 (Windows x64 Portable)</title>
+  <style>
+    :root {
+      --bg-app: #0f1117;
+      --bg-titlebar: #090b10;
+      --bg-panel: #161922;
+      --bg-panel-alt: #1c202c;
+      --bg-input: #11141c;
+      --bg-hover: #232838;
+      --bg-selected: #1e2942;
+      --bg-badge: #252b3d;
+      --border: #262b3c;
+      --border-strong: #374059;
+      --text-main: #e6e9f2;
+      --text-muted: #939bb4;
+      --text-dim: #646d87;
+      --accent: #f97316;
+      --accent-hover: #fb923c;
+      --accent-soft: rgba(249, 115, 22, 0.14);
+      --blue: #3b82f6;
+      --blue-soft: rgba(59, 130, 246, 0.15);
+      --green: #10b981;
+      --green-soft: rgba(16, 185, 129, 0.15);
+      --amber: #f59e0b;
+      --amber-soft: rgba(245, 158, 11, 0.15);
+      --red: #ef4444;
+      --red-soft: rgba(239, 68, 68, 0.15);
+      --purple: #a855f7;
+      --purple-soft: rgba(168, 85, 247, 0.15);
+      --mark-bg: rgba(245, 158, 11, 0.28);
+      --mark-border: #f59e0b;
+      --mark-active-bg: rgba(249, 115, 22, 0.52);
+      --mark-active-border: #fff;
+      --font-sans: "Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+      --font-mono: "Cascadia Code", "JetBrains Mono", "Consolas", monospace;
+      --preview-font-size: 13px;
+      --shadow-lg: 0 16px 40px rgba(0, 0, 0, 0.55);
+    }
+
+    [data-theme="light"] {
+      --bg-app: #f3f5f9;
+      --bg-titlebar: #e5e9f2;
+      --bg-panel: #ffffff;
+      --bg-panel-alt: #f8fafc;
+      --bg-input: #ffffff;
+      --bg-hover: #eef2f8;
+      --bg-selected: #fff4ed;
+      --bg-badge: #e9eef6;
+      --border: #dce2ee;
+      --border-strong: #c2cce0;
+      --text-main: #181c26;
+      --text-muted: #556078;
+      --text-dim: #838ea6;
+      --accent: #ea580c;
+      --accent-hover: #f97316;
+      --accent-soft: rgba(234, 88, 12, 0.12);
+      --blue: #2563eb;
+      --blue-soft: rgba(37, 99, 235, 0.12);
+      --green: #059669;
+      --green-soft: rgba(5, 150, 105, 0.12);
+      --amber: #d97706;
+      --amber-soft: rgba(217, 119, 6, 0.12);
+      --red: #dc2626;
+      --red-soft: rgba(220, 38, 38, 0.12);
+      --purple: #7e22ce;
+      --purple-soft: rgba(126, 34, 206, 0.12);
+      --mark-bg: #fef08a;
+      --mark-border: #ca8a04;
+      --mark-active-bg: #fdba74;
+      --mark-active-border: #ea580c;
+      --shadow-lg: 0 14px 36px rgba(15, 23, 42, 0.15);
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background: var(--bg-app);
+      color: var(--text-main);
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      font-size: 13px;
+      line-height: 1.45;
+      user-select: none;
+    }
+
+    /* Native Windows Tauri Titlebar */
+    .titlebar {
+      height: 34px;
+      background: var(--bg-titlebar);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 10px 0 12px;
+      flex-shrink: 0;
+    }
+
+    .titlebar-brand {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-weight: 600;
+      font-size: 12.5px;
+      color: var(--text-main);
+    }
+
+    .fox-logo {
+      width: 20px;
+      height: 20px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #f97316, #ea580c);
+      border-radius: 5px;
+      color: #fff;
+      font-weight: 800;
+      font-size: 12px;
+      box-shadow: 0 2px 6px rgba(249, 115, 22, 0.35);
+    }
+
+    .titlebar-meta {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11.5px;
+      color: var(--text-muted);
+    }
+
+    .pill-tag {
+      padding: 1px 7px;
+      border-radius: 4px;
+      background: var(--bg-badge);
+      border: 1px solid var(--border);
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    .titlebar-controls {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .win-btn {
+      background: transparent;
+      border: 1px solid transparent;
+      color: var(--text-muted);
+      padding: 3px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 11.5px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+      transition: all 0.12s;
+    }
+    .win-btn:hover {
+      background: var(--bg-hover);
+      color: var(--text-main);
+      border-color: var(--border);
+    }
+    .win-btn.close-btn:hover {
+      background: var(--red);
+      color: #fff;
+      border-color: var(--red);
+    }
+
+    /* Quick Acceptance Test Matrix Bar */
+    .matrix-bar {
+      background: var(--bg-panel-alt);
+      border-bottom: 1px solid var(--border);
+      padding: 6px 14px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      overflow-x: auto;
+      flex-shrink: 0;
+    }
+    .matrix-bar::-webkit-scrollbar {
+      height: 4px;
+    }
+    .matrix-bar::-webkit-scrollbar-thumb {
+      background: var(--border-strong);
+      border-radius: 2px;
+    }
+
+    .matrix-label {
+      font-size: 11.5px;
+      font-weight: 600;
+      color: var(--accent);
+      white-space: nowrap;
+      display: flex;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .scenario-chip {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 3px 9px;
+      border-radius: 14px;
+      font-size: 11.5px;
+      cursor: pointer;
+      white-space: nowrap;
+      transition: all 0.12s;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+    .scenario-chip:hover {
+      border-color: var(--accent);
+      color: var(--text-main);
+      background: var(--accent-soft);
+    }
+    .scenario-chip.active {
+      background: var(--accent);
+      color: #fff;
+      border-color: var(--accent);
+      font-weight: 600;
+    }
+    .scenario-chip code {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      opacity: 0.9;
+    }
+
+    /* Top Search Header (Section 10 Layout) */
+    .search-header {
+      background: var(--bg-panel);
+      border-bottom: 1px solid var(--border);
+      padding: 10px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      flex-shrink: 0;
+    }
+
+    .search-row-top {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .search-input-wrap {
+      flex: 1;
+      position: relative;
+      display: flex;
+      align-items: center;
+    }
+
+    .search-icon {
+      position: absolute;
+      left: 11px;
+      color: var(--text-dim);
+      font-size: 14px;
+      pointer-events: none;
+    }
+
+    .search-input {
+      width: 100%;
+      height: 36px;
+      background: var(--bg-input);
+      border: 1.5px solid var(--border-strong);
+      border-radius: 6px;
+      padding: 0 210px 0 34px;
+      color: var(--text-main);
+      font-family: var(--font-mono);
+      font-size: 13.5px;
+      outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+    }
+    .search-input:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 3px var(--accent-soft);
+    }
+    .search-input.dirty {
+      border-color: var(--amber);
+    }
+    .search-input.has-error {
+      border-color: var(--red);
+    }
+
+    .search-inline-status {
+      position: absolute;
+      right: 8px;
+      display: flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .dirty-hint {
+      font-size: 11px;
+      padding: 2px 7px;
+      border-radius: 4px;
+      background: var(--amber-soft);
+      color: var(--amber);
+      border: 1px solid rgba(245, 158, 11, 0.35);
+      display: none;
+      align-items: center;
+      gap: 4px;
+    }
+    .dirty-hint.visible {
+      display: inline-flex;
+    }
+
+    .icon-small-btn {
+      background: var(--bg-badge);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 3px 7px;
+      border-radius: 4px;
+      font-size: 11px;
+      cursor: pointer;
+    }
+    .icon-small-btn:hover {
+      color: var(--text-main);
+      border-color: var(--border-strong);
+    }
+
+    .btn-primary {
+      height: 36px;
+      padding: 0 18px;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-weight: 600;
+      font-size: 13px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      transition: background 0.15s;
+      white-space: nowrap;
+    }
+    .btn-primary:hover {
+      background: var(--accent-hover);
+    }
+
+    .btn-secondary {
+      height: 36px;
+      padding: 0 12px;
+      background: var(--bg-panel-alt);
+      color: var(--text-main);
+      border: 1px solid var(--border-strong);
+      border-radius: 6px;
+      font-size: 12.5px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      white-space: nowrap;
+    }
+    .btn-secondary:hover {
+      background: var(--bg-hover);
+    }
+
+    /* AST / Error Banner */
+    .ast-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 5px 10px;
+      border-radius: 5px;
+      font-size: 11.5px;
+      background: var(--bg-panel-alt);
+      border: 1px solid var(--border);
+      gap: 10px;
+    }
+    .ast-banner.error {
+      background: var(--red-soft);
+      border-color: var(--red);
+      color: var(--red);
+    }
+    .ast-code {
+      font-family: var(--font-mono);
+      color: var(--text-main);
+    }
+
+    /* Search Controls Row 2 */
+    .search-row-controls {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .control-group {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .control-label {
+      font-size: 11.5px;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    .segmented {
+      display: inline-flex;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      border-radius: 5px;
+      padding: 2px;
+      gap: 2px;
+    }
+
+    .seg-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 3px 10px;
+      border-radius: 4px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    .seg-btn:hover {
+      color: var(--text-main);
+    }
+    .seg-btn.active {
+      background: var(--accent);
+      color: #fff;
+      font-weight: 600;
+    }
+
+    .filter-pill {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      color: var(--text-muted);
+      padding: 3px 9px;
+      border-radius: 4px;
+      font-size: 11.5px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .filter-pill.active {
+      background: var(--blue-soft);
+      border-color: var(--blue);
+      color: var(--blue);
+      font-weight: 600;
+    }
+
+    .select-box {
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      color: var(--text-main);
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      outline: none;
+      cursor: pointer;
+    }
+
+    /* History Dropdown Popover */
+    .history-popover {
+      position: absolute;
+      top: 40px;
+      left: 0;
+      right: 0;
+      background: var(--bg-panel);
+      border: 1px solid var(--border-strong);
+      border-radius: 6px;
+      box-shadow: var(--shadow-lg);
+      z-index: 100;
+      display: none;
+      flex-direction: column;
+      max-height: 320px;
+      overflow: hidden;
+    }
+    .history-popover.open {
+      display: flex;
+    }
+    .history-header {
+      padding: 8px 12px;
+      background: var(--bg-panel-alt);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11.5px;
+      color: var(--text-muted);
+    }
+    .history-list {
+      overflow-y: auto;
+      divide-y: 1px solid var(--border);
+    }
+    .history-item {
+      padding: 7px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      cursor: pointer;
+      border-bottom: 1px solid var(--border);
+      font-size: 12px;
+    }
+    .history-item:hover {
+      background: var(--bg-hover);
+    }
+
+    /* Main 3-Pane Workspace */
+    .workspace {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 280px 390px 1fr;
+      overflow: hidden;
+    }
+
+    .pane {
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      border-right: 1px solid var(--border);
+      background: var(--bg-panel);
+    }
+    .pane:last-child {
+      border-right: none;
+    }
+
+    .pane-header {
+      padding: 9px 12px;
+      background: var(--bg-panel-alt);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-weight: 600;
+      font-size: 12px;
+      color: var(--text-main);
+      flex-shrink: 0;
+    }
+
+    .pane-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 8px;
+    }
+    .pane-body::-webkit-scrollbar {
+      width: 6px;
+    }
+    .pane-body::-webkit-scrollbar-thumb {
+      background: var(--border-strong);
+      border-radius: 3px;
+    }
+
+    /* Left Pane: Sources & Coverage States */
+    .source-card {
+      padding: 9px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border);
+      background: var(--bg-panel-alt);
+      margin-bottom: 7px;
+      cursor: pointer;
+      transition: all 0.12s;
+    }
+    .source-card:hover {
+      border-color: var(--border-strong);
+      background: var(--bg-hover);
+    }
+    .source-card.active {
+      border-color: var(--accent);
+      background: var(--bg-selected);
+    }
+
+    .source-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+
+    .source-path {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-main);
+      word-break: break-all;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      flex-shrink: 0;
+    }
+    .status-dot.online { background: var(--green); box-shadow: 0 0 6px var(--green); }
+    .status-dot.offline { background: var(--amber); }
+    .status-dot.scanning { background: var(--blue); animation: pulse 1.2s infinite; }
+    .status-dot.failed { background: var(--red); }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.35; }
+    }
+
+    .source-meta {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-top: 4px;
+    }
+
+    .source-actions {
+      margin-top: 7px;
+      padding-top: 6px;
+      border-top: 1px dashed var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 4px;
+    }
+
+    .mini-btn {
+      padding: 2px 7px;
+      font-size: 11px;
+      border-radius: 4px;
+      border: 1px solid var(--border-strong);
+      background: var(--bg-panel);
+      color: var(--text-muted);
+      cursor: pointer;
+    }
+    .mini-btn:hover {
+      color: var(--text-main);
+      border-color: var(--accent);
+    }
+
+    .section-divider {
+      margin: 14px 4px 8px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--text-dim);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .state-filter-list {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .state-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 6px 9px;
+      border-radius: 5px;
+      background: var(--bg-panel-alt);
+      border: 1px solid var(--border);
+      font-size: 11.5px;
+      cursor: pointer;
+    }
+    .state-row:hover {
+      background: var(--bg-hover);
+    }
+    .state-row.active {
+      border-color: var(--accent);
+      background: var(--bg-selected);
+    }
+
+    /* Center Pane: Search Results List */
+    .result-card {
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      background: var(--bg-panel-alt);
+      margin-bottom: 8px;
+      overflow: hidden;
+      transition: all 0.12s;
+      cursor: pointer;
+    }
+    .result-card:hover {
+      border-color: var(--border-strong);
+    }
+    .result-card.selected {
+      border-color: var(--accent);
+      background: var(--bg-selected);
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+    }
+
+    .result-header {
+      padding: 9px 11px;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .result-title-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 6px;
+      margin-bottom: 4px;
+    }
+
+    .file-title {
+      font-weight: 600;
+      font-size: 13px;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      word-break: break-all;
+    }
+
+    .ext-badge {
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      font-weight: 700;
+      text-transform: uppercase;
+      flex-shrink: 0;
+    }
+    .ext-pdf { background: var(--red-soft); color: var(--red); border: 1px solid rgba(239, 68, 68, 0.3); }
+    .ext-docx { background: var(--blue-soft); color: var(--blue); border: 1px solid rgba(59, 130, 246, 0.3); }
+    .ext-code { background: var(--green-soft); color: var(--green); border: 1px solid rgba(16, 185, 129, 0.3); }
+    .ext-md { background: var(--purple-soft); color: var(--purple); border: 1px solid rgba(168, 85, 247, 0.3); }
+    .ext-txt { background: var(--amber-soft); color: var(--amber); border: 1px solid rgba(245, 158, 11, 0.3); }
+
+    .file-subpath {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      word-break: break-all;
+      margin-bottom: 6px;
+    }
+
+    .badge-row {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 5px;
+    }
+
+    .tag {
+      font-size: 10.5px;
+      padding: 1px 6px;
+      border-radius: 3px;
+      font-weight: 500;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+    }
+    .tag-exact { background: var(--green-soft); color: var(--green); }
+    .tag-fuzzy { background: var(--purple-soft); color: var(--purple); border: 1px solid rgba(168, 85, 247, 0.35); }
+    .tag-ocr { background: var(--amber-soft); color: var(--amber); }
+    .tag-chunk { background: var(--blue-soft); color: var(--blue); }
+    .tag-offline { background: var(--bg-badge); color: var(--amber); border: 1px solid var(--amber); }
+    .tag-skipped { background: var(--red-soft); color: var(--red); }
+
+    .snippet-list {
+      padding: 6px 9px;
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+
+    .snippet-item {
+      padding: 6px 8px;
+      border-radius: 4px;
+      background: var(--bg-input);
+      border: 1px solid var(--border);
+      font-family: var(--font-mono);
+      font-size: 11.5px;
+      color: var(--text-muted);
+      transition: all 0.1s;
+    }
+    .snippet-item:hover {
+      border-color: var(--accent);
+      color: var(--text-main);
+    }
+    .snippet-item.active-hit {
+      border-color: var(--accent);
+      background: var(--accent-soft);
+      color: var(--text-main);
+    }
+
+    .snippet-locator {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 10.5px;
+      color: var(--accent);
+      margin-bottom: 3px;
+      font-weight: 600;
+    }
+
+    mark {
+      background: var(--mark-bg);
+      color: var(--text-main);
+      border-bottom: 2px solid var(--mark-border);
+      padding: 0 2px;
+      border-radius: 2px;
+      font-weight: 600;
+    }
+    mark.active-mark {
+      background: var(--mark-active-bg);
+      border: 1.5px solid var(--mark-active-border);
+      box-shadow: 0 0 8px rgba(249, 115, 22, 0.6);
+    }
+
+    /* Right Pane: Preview & Hit Navigation */
+    .preview-toolbar {
+      padding: 8px 14px;
+      background: var(--bg-panel-alt);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .preview-info-bar {
+      padding: 6px 14px;
+      background: var(--bg-input);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 8px;
+      font-size: 11.5px;
+      color: var(--text-muted);
+    }
+
+    .preview-container {
+      flex: 1;
+      overflow-y: auto;
+      padding: 16px;
+      background: var(--bg-app);
+      user-select: text;
+    }
+
+    /* Code / TXT View with line numbers */
+    .code-viewer {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      font-family: var(--font-mono);
+      font-size: var(--preview-font-size);
+      overflow-x: auto;
+    }
+
+    .code-line {
+      display: flex;
+      padding: 2px 12px 2px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.02);
+    }
+    .code-line.hit-line {
+      background: rgba(249, 115, 22, 0.08);
+    }
+    .line-num {
+      width: 48px;
+      text-align: right;
+      padding-right: 12px;
+      color: var(--text-dim);
+      user-select: none;
+      flex-shrink: 0;
+      border-right: 1px solid var(--border);
+      margin-right: 12px;
+    }
+    .line-text {
+      white-space: pre-wrap;
+      word-break: break-all;
+      flex: 1;
+    }
+
+    .chunk-boundary-bar {
+      background: var(--blue-soft);
+      border-top: 1px dashed var(--blue);
+      border-bottom: 1px dashed var(--blue);
+      color: var(--blue);
+      padding: 4px 12px;
+      font-size: 11px;
+      font-family: var(--font-mono);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    /* PDF Simulated Page Canvas */
+    .pdf-stage {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .pdf-page-sheet {
+      width: 100%;
+      max-width: 720px;
+      background: #fcfcfd;
+      color: #1a1d24;
+      border-radius: 4px;
+      box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
+      border: 1px solid var(--border-strong);
+      padding: 32px 40px;
+      position: relative;
+      font-family: "Times New Roman", "Songti SC", serif;
+      line-height: 1.65;
+      font-size: 14px;
+    }
+    .pdf-page-sheet.scanned-mode {
+      background: #f4f1ea;
+      background-image: radial-gradient(#dcd6c8 0.6px, transparent 0.6px);
+      background-size: 12px 12px;
+      font-family: "Courier New", "FangSong", monospace;
+    }
+
+    .pdf-page-header {
+      display: flex;
+      justify-content: space-between;
+      border-bottom: 1px solid #cbd5e1;
+      padding-bottom: 6px;
+      margin-bottom: 18px;
+      font-family: var(--font-sans);
+      font-size: 11px;
+      color: #64748b;
+    }
+
+    .pdf-bbox-box {
+      border: 2px dashed #ea580c;
+      background: rgba(249, 115, 22, 0.12);
+      padding: 8px 10px;
+      border-radius: 4px;
+      margin: 10px 0;
+      position: relative;
+    }
+    .pdf-bbox-label {
+      position: absolute;
+      top: -10px;
+      right: 8px;
+      background: #ea580c;
+      color: #fff;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      padding: 1px 6px;
+      border-radius: 3px;
+    }
+
+    .pdf-page-sheet mark {
+      background: #fde047;
+      color: #000;
+      border-bottom: 2px solid #ca8a04;
+    }
+    .pdf-page-sheet mark.active-mark {
+      background: #fb923c;
+      color: #fff;
+      border-color: #9a3412;
+    }
+
+    /* DOCX Plain Text & Structured Table View */
+    .docx-sheet {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 18px 22px;
+      font-size: var(--preview-font-size);
+    }
+    .docx-para {
+      padding: 8px 10px;
+      border-left: 3px solid var(--border-strong);
+      background: var(--bg-panel-alt);
+      margin-bottom: 10px;
+      border-radius: 0 4px 4px 0;
+    }
+    .docx-para.hit-para {
+      border-left-color: var(--accent);
+      background: var(--bg-selected);
+    }
+    .docx-para-meta {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: var(--text-dim);
+      margin-bottom: 4px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .docx-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 12px 0;
+      font-size: 12.5px;
+    }
+    .docx-table th, .docx-table td {
+      border: 1px solid var(--border-strong);
+      padding: 7px 10px;
+      text-align: left;
+      background: var(--bg-panel-alt);
+    }
+    .docx-table th {
+      background: var(--bg-badge);
+      font-weight: 600;
+    }
+
+    /* Bottom Status Bar (Section 10) */
+    .statusbar {
+      height: 28px;
+      background: var(--bg-titlebar);
+      border-top: 1px solid var(--border);
+      padding: 0 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 11.5px;
+      color: var(--text-muted);
+      flex-shrink: 0;
+    }
+
+    .status-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .status-sep {
+      color: var(--border-strong);
+    }
+
+    /* Modals */
+    .modal-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.65);
+      backdrop-filter: blur(2px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 200;
+    }
+    .modal-backdrop.open {
+      display: flex;
+    }
+
+    .modal {
+      width: 680px;
+      max-width: 94vw;
+      max-height: 86vh;
+      background: var(--bg-panel);
+      border: 1px solid var(--border-strong);
+      border-radius: 8px;
+      box-shadow: var(--shadow-lg);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    .modal-header {
+      padding: 12px 16px;
+      background: var(--bg-panel-alt);
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-weight: 600;
+      font-size: 14px;
+    }
+
+    .modal-body {
+      padding: 16px;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+    }
+
+    .modal-footer {
+      padding: 10px 16px;
+      background: var(--bg-panel-alt);
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: flex-end;
+      gap: 8px;
+    }
+
+    .form-grid {
+      display: grid;
+      grid-template-columns: 150px 1fr;
+      gap: 10px 14px;
+      align-items: center;
+    }
+
+    .form-input {
+      background: var(--bg-input);
+      border: 1px solid var(--border-strong);
+      color: var(--text-main);
+      padding: 6px 10px;
+      border-radius: 5px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      width: 100%;
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+    .metric-box {
+      background: var(--bg-panel-alt);
+      border: 1px solid var(--border);
+      padding: 10px 12px;
+      border-radius: 6px;
+    }
+    .metric-val {
+      font-size: 18px;
+      font-weight: 700;
+      font-family: var(--font-mono);
+      color: var(--accent);
+      margin-top: 2px;
+    }
+
+    /* Toast Notification */
+    .toast {
+      position: fixed;
+      bottom: 40px;
+      right: 18px;
+      background: var(--bg-panel);
+      border: 1px solid var(--accent);
+      color: var(--text-main);
+      padding: 10px 14px;
+      border-radius: 6px;
+      box-shadow: var(--shadow-lg);
+      z-index: 300;
+      font-size: 12.5px;
+      display: none;
+      align-items: center;
+      gap: 8px;
+      max-width: 420px;
+    }
+    .toast.show {
+      display: flex;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- 1. Tauri Windows Native Titlebar -->
+  <header class="titlebar">
+    <div class="titlebar-brand">
+      <span class="fox-logo">狐</span>
+      <span>IndexFox · 索引狐</span>
+      <span class="pill-tag">IndexFox.exe · V1.0 Portable x64</span>
+      <span class="pill-tag" id="offlineBadge" title="需求 2.1 / Q28：仅本地只读处理，禁止任何外部网络请求">🔒 纯本地离线 · 原始文件只读</span>
+    </div>
+    <div class="titlebar-meta">
+      <span id="closeBehaviorTag">关闭策略: 关闭即彻底退出</span>
+      <span>|</span>
+      <span id="resourceModeTag">调度: 均衡模式 (OCR并发 2)</span>
+      <span>|</span>
+      <span id="currentFontTag" title="需求 21 / Q32：当前读取并应用的系统字体配置">字体: 系统默认</span>
+    </div>
+    <div class="titlebar-controls">
+      <button class="win-btn" onclick="openModal('diagModal')" title="查看 SQLite FTS5 / short_grams 索引队列与性能基准记录">
+        📊 索引队列与诊断 <span class="pill-tag" style="color:var(--accent)">18 队列</span>
+      </button>
+      <button class="win-btn" onclick="openFontSettings()" title="需求 21 / Q32：读取本机系统已安装字体并修改界面/预览字体">
+        🔤 字体
+      </button>
+      <button class="win-btn" onclick="toggleTheme()" id="themeBtn" title="切换深色/浅色外观">
+        🌓 外观
+      </button>
+      <button class="win-btn" onclick="openModal('settingsModal')" title="打开系统设置 (需求 03, 06, 10, 11, 12, 21)">
+        ⚙ 设置
+      </button>
+      <button class="win-btn close-btn" onclick="simulateWindowClose()" title="测试需求 06 / Q25 关闭窗口行为">
+        ✕
+      </button>
+    </div>
+  </header>
+
+  <!-- 2. Interactive Acceptance Test Matrix Preset Bar (03_验收测试矩阵.md) -->
+  <div class="matrix-bar">
+    <span class="matrix-label">🧪 验收矩阵一键演练：</span>
+    <button class="scenario-chip active" onclick="runScenario('q04', this)">
+      <span>Q04 标识符</span><code>VIDIOC_STREAMON</code>
+    </button>
+    <button class="scenario-chip" onclick="runScenario('q05', this)">
+      <span>Q05 函数含括号</span><code>dma_alloc_coherent()</code>
+    </button>
+    <button class="scenario-chip" onclick="runScenario('q10', this)">
+      <span>Q10 拼写容错(d=1)</span><code>dma_alloc_cohernt</code>
+    </button>
+    <button class="scenario-chip" onclick="runScenario('q01', this)">
+      <span>Q01 单字倒排</span><code>内</code>
+    </button>
+    <button class="scenario-chip" onclick="runScenario('q02', this)">
+      <span>Q02 双字倒排</span><code>内核</code>
+    </button>
+    <button class="scenario-chip" onclick="runScenario('q08', this)">
+      <span>Q08 布尔组合</span><code>(Linux OR Windows) 驱动</code>
+    </button>
+    <button class="scenario-chip" onclick="runScenario('q07', this)">
+      <span>Q07 排除词</span><code>Linux -Windows</code>
+    </button>
+    <button class="scenario-chip" onclick="runScenario('q09', this)">
+      <span>Q09 跨块连续短语</span><code>"Linux kernel"</code>
+    </button>
+    <button class="scenario-chip" onclick="runScenario('q06', this)">
+      <span>Q06/Q11 特殊字符</span><code>#include OR 100%</code>
+    </button>
+    <button class="scenario-chip" onclick="runScenario('q14', this)">
+      <span>Q14/Q15 扫描PDF OCR</span><code>采集卡寄存器</code>
+    </button>
+    <button class="scenario-chip" onclick="runScenario('q19', this)">
+      <span>Q19 >100MB超限文件</span><code>coredump</code>
+    </button>
+    <button class="scenario-chip" onclick="runScenario('q32', this)">
+      <span>Q32 系统字体读取与切换</span><code>🔤 系统字体</code>
+    </button>
+    <button class="scenario-chip" onclick="runScenario('syntax_err', this)">
+      <span>M2.1 语法错误定位</span><code>(Linux OR "kernel</code>
+    </button>
+  </div>
+
+  <!-- 3. Search Bar & Filter Controls (Section 10) -->
+  <section class="search-header">
+    <div class="search-row-top">
+      <div class="search-input-wrap">
+        <span class="search-icon">🔍</span>
+        <input
+          type="text"
+          id="searchInput"
+          class="search-input"
+          value="VIDIOC_STREAMON"
+          placeholder="输入检索词或表达式：支持 AND / OR / -排除 / &quot;连续短语&quot; / (括号)... 仅按 Enter 或点[搜索]执行"
+          autocomplete="off"
+        />
+        <div class="search-inline-status">
+          <span id="dirtyHint" class="dirty-hint" title="需求 18 / Q26：编辑输入框不会自动实时检索，避免高负载阻塞">
+            ⌨ 待执行：按 Enter 或点 [搜索]
+          </span>
+          <button class="icon-small-btn" onclick="toggleHistoryPopover(event)" title="需求 19 / Q27：最近 100 条去重搜索历史">
+            🕘 历史 (<span id="historyCountLabel">6</span>) ▾
+          </button>
+          <button class="icon-small-btn" onclick="clearSearchInput()" title="清空输入框">✕</button>
+        </div>
+
+        <!-- Search History Dropdown -->
+        <div id="historyPopover" class="history-popover">
+          <div class="history-header">
+            <span>最近搜索历史 (上限 100 条 · 自动去重)</span>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <label style="cursor:pointer;display:flex;align-items:center;gap:4px;">
+                <input type="checkbox" id="historyEnableToggle" checked onchange="toggleHistoryRecording()" /> 记录历史
+              </label>
+              <button class="mini-btn" onclick="clearAllHistory(event)">清空全部</button>
+            </div>
+          </div>
+          <div id="historyList" class="history-list"></div>
+        </div>
+      </div>
+
+      <button class="btn-primary" onclick="executeCommittedSearch()" title="执行检索 (快捷键: Enter)">
+        <span>搜索</span>
+        <span style="font-size:11px;opacity:0.85;font-family:var(--font-mono)">↵</span>
+      </button>
+    </div>
+
+    <!-- AST Parse & Recall Strategy Status Banner -->
+    <div id="astBanner" class="ast-banner">
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+        <span style="color:var(--accent);font-weight:600;" id="astTitle">✔ 查询计划 (AST)：</span>
+        <code class="ast-code" id="astExpression">Term("VIDIOC_STREAMON")</code>
+        <span class="pill-tag" id="recallLayerBadge">召回层: FTS5 trigram (>=3 chars) + 原文偏移校验</span>
+      </div>
+      <div style="font-size:11px;color:var(--text-muted);" id="searchModeNotice">
+        严格模式：绝不混入拼写近似词
+      </div>
+    </div>
+
+    <!-- Row 2: Mode, Case, Sort, Format Filters -->
+    <div class="search-row-controls">
+      <div class="control-group">
+        <span class="control-label">检索模式：</span>
+        <div class="segmented" id="modeSegmented">
+          <button class="seg-btn active" data-mode="exact" onclick="setSearchMode('exact')" title="严格连续短语/子串校验，不允许删字或交换字符">
+            精确 (Exact)
+          </button>
+          <button class="seg-btn" data-mode="substring" onclick="setSearchMode('substring')" title="任意位置包含输入片段，默认忽略 ASCII 大小写">
+            子串 (Substring)
+          </button>
+          <button class="seg-btn" data-mode="fuzzy" onclick="setSearchMode('fuzzy')" title="词典候选 + Damerau-Levenshtein 编辑距离容错，返回相似度解释，精确结果优先">
+            拼写容错 (Fuzzy)
+          </button>
+        </div>
+        <label class="filter-pill" style="cursor:pointer;margin-left:4px;" title="切换是否区分大小写">
+          <input type="checkbox" id="caseSensitiveCheck" onchange="markQueryDirty()" /> 区分大小写 (Aa)
+        </label>
+      </div>
+
+      <div class="control-group">
+        <span class="control-label">格式过滤：</span>
+        <button class="filter-pill active" data-ext="all" onclick="setFormatFilter('all', this)">全部</button>
+        <button class="filter-pill" data-ext="pdf" onclick="setFormatFilter('pdf', this)">PDF</button>
+        <button class="filter-pill" data-ext="docx" onclick="setFormatFilter('docx', this)">DOCX</button>
+        <button class="filter-pill" data-ext="md" onclick="setFormatFilter('md', this)">MD</button>
+        <button class="filter-pill" data-ext="txt" onclick="setFormatFilter('txt', this)">TXT</button>
+        <button class="filter-pill" data-ext="code" onclick="setFormatFilter('code', this)">代码/配置 (.c/.log)</button>
+      </div>
+
+      <div class="control-group">
+        <span class="control-label">排序：</span>
+        <select id="sortSelect" class="select-box" onchange="executeCommittedSearch()">
+          <option value="relevance">相关度 ▾ (文件名精确 > 正文连续 > 子串 > 容错)</option>
+          <option value="hits">命中数 (由高到低)</option>
+          <option value="mtime">修改日期 (最新优先)</option>
+          <option value="size">文件大小 (由大到小)</option>
+          <option value="filename">文件名 (A → Z)</option>
+          <option value="path">文件路径 (A → Z)</option>
+        </select>
+      </div>
+    </div>
+  </section>
+
+  <!-- 4. Main Three-Pane Desktop Workspace -->
+  <main class="workspace">
+
+    <!-- LEFT PANE: Sources & Index Coverage -->
+    <aside class="pane">
+      <div class="pane-header">
+        <span>📁 已索引目录 (Sources)</span>
+        <button class="mini-btn" style="color:var(--accent);border-color:var(--accent);" onclick="openModal('addSourceModal')">
+          + 添加目录
+        </button>
+      </div>
+      <div class="pane-body">
+        <div id="sourcesList"></div>
+
+        <div class="section-divider">
+          <span>索引覆盖与特殊状态透视</span>
+          <span title="需求 2.1：当前正在索引或已跳过的内容不得误示为已全文覆盖">ⓘ</span>
+        </div>
+
+        <div class="state-filter-list" id="stateFilterList">
+          <div class="state-row active" data-state="all" onclick="setStateFilter('all', this)">
+            <span>🔹 全部可检索记录</span>
+            <span class="pill-tag" id="countAll">10</span>
+          </div>
+          <div class="state-row" data-state="indexed" onclick="setStateFilter('indexed', this)">
+            <span>🟢 已完成全文索引 (indexed)</span>
+            <span class="pill-tag" id="countIndexed">7</span>
+          </div>
+          <div class="state-row" data-state="offline" onclick="setStateFilter('offline', this)">
+            <span>🟠 源离线·保留缓存 (offline)</span>
+            <span class="pill-tag" id="countOffline">1</span>
+          </div>
+          <div class="state-row" data-state="skipped_size" onclick="setStateFilter('skipped_size', this)">
+            <span>🟣 >100MB 仅文件名 (skipped)</span>
+            <span class="pill-tag" id="countSkipped">1</span>
+          </div>
+          <div class="state-row" data-state="pending_failed" onclick="setStateFilter('pending_failed', this)">
+            <span>🔴 解析中/损坏隔离 (未覆盖)</span>
+            <span class="pill-tag" id="countPendingFailed">2</span>
+          </div>
+        </div>
+
+        <div style="margin-top:14px;padding:10px;border-radius:6px;background:var(--bg-panel-alt);border:1px solid var(--border);font-size:11px;color:var(--text-muted);">
+          <div style="font-weight:600;color:var(--text-main);margin-bottom:4px;">💡 离线防误删保护 (Q20)</div>
+          <div>尝试点击上方 <code>\\nas\share\docs</code> 或 <code>WSL</code> 的 <b>[模拟断连/恢复]</b>：源断连仅标记 <code>offline</code>，绝不触发批量删除既有索引。</div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- CENTER PANE: Aggregated File Results & Hit Snippets -->
+    <section class="pane">
+      <div class="pane-header">
+        <span id="resultsPaneTitle">搜索结果 (文件聚合列表)</span>
+        <span class="pill-tag" id="resultsCountBadge">0 份文件</span>
+      </div>
+      <div class="pane-body" id="resultsListContainer">
+        <!-- Populated by JS -->
+      </div>
+    </section>
+
+    <!-- RIGHT PANE: Document Preview & Hit Highlighter -->
+    <section class="pane">
+      <div class="preview-toolbar" id="previewToolbar">
+        <div style="display:flex;align-items:center;gap:8px;min-width:0;">
+          <span id="previewExtBadge" class="ext-badge ext-pdf">PDF</span>
+          <span id="previewFileTitle" style="font-weight:700;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">
+            Linux_DMA_API_Guide.pdf
+          </span>
+        </div>
+
+        <div style="display:flex;align-items:center;gap:6px;">
+          <div id="formatViewSwitch" class="segmented"></div>
+          <button class="mini-btn" onclick="stepHit(-1)" title="跳转到上一个命中位置">▲ 上一个命中</button>
+          <span class="pill-tag" id="hitCounterBadge" style="color:var(--accent);font-weight:700;">1 / 1</span>
+          <button class="mini-btn" onclick="stepHit(1)" title="跳转到下一个命中位置">▼ 下一个命中</button>
+        </div>
+      </div>
+
+      <div class="preview-info-bar" id="previewInfoBar">
+        <!-- Populated by JS -->
+      </div>
+
+      <div class="preview-container" id="previewContainer">
+        <!-- Populated by JS -->
+      </div>
+    </section>
+
+  </main>
+
+  <!-- 5. Bottom Status Bar (Section 10) -->
+  <footer class="statusbar">
+    <div class="status-group">
+      <span>找到 <b style="color:var(--text-main)" id="statFileCount">3</b> 份文件</span>
+      <span class="status-sep">|</span>
+      <span>已展示 <b style="color:var(--text-main)" id="statHitCount">6</b> 条命中</span>
+      <span class="status-sep">|</span>
+      <span>真实耗时 <b style="color:var(--accent)" id="statElapsed">14.2 ms</b></span>
+      <span class="status-sep">|</span>
+      <span>索引覆盖 <b style="color:var(--green)">8,471</b> / 10,214 文件 <span style="color:var(--text-dim)">(跳过>100MB: 4 · 队列中: 18 · 失败: 3)</span></span>
+    </div>
+    <div class="status-group">
+      <span style="font-family:var(--font-mono)" id="dbPathFooter">DB: %LOCALAPPDATA%\IndexFox\data\index.db (SQLite WAL · 单写多读)</span>
+    </div>
+  </footer>
+
+  <!-- MODAL 1: Add Directory Source (Section 5) -->
+  <div id="addSourceModal" class="modal-backdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <span>📁 添加索引目录源 (Source Manager)</span>
+        <button class="win-btn" onclick="closeModal('addSourceModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div style="padding:8px 12px;border-radius:5px;background:var(--blue-soft);color:var(--blue);font-size:12px;">
+          遵循需求 04 & 05：首次启动默认无全盘扫描，仅索引用户手动添加的根目录；重叠根目录自动去重，不跨越 symlink/junction 环路。
+        </div>
+        <div class="form-grid">
+          <label>存储源类型 (kind)：</label>
+          <select id="newSourceKind" class="select-box" onchange="updateSourcePlaceholder()">
+            <option value="local">local — 本地磁盘 (notify 事件监控 + 启动对账)</option>
+            <option value="smb">smb — NAS / SMB 网络共享 (定时轮询 + 断连防误删保护)</option>
+            <option value="wsl">wsl — WSL Linux UNC 目录 (保留大小写敏感 · 停机离线缓存)</option>
+            <option value="removable">removable — 移动设备/U盘 (稳定卷标识别 + 盘符重绑定)</option>
+          </select>
+
+          <label>根目录路径：</label>
+          <input type="text" id="newSourcePath" class="form-input" value="D:\Projects\Embedded_BSP" />
+
+          <label>扩展名白名单：</label>
+          <input type="text" class="form-input" value=".txt, .md, .pdf, .docx, .c, .h, .rs, .py, .json, .yaml, .log, .ini" />
+
+          <label>目录排除规则：</label>
+          <input type="text" class="form-input" value=".git, node_modules, .venv, target, build, dist" />
+
+          <label>单文件大小上限：</label>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input type="number" class="form-input" value="100" style="width:90px;" />
+            <span style="font-size:12px;color:var(--text-muted)">MB (超限文件标记 <code>skipped_size</code>，仅按文件名检索，支持单文件强制索引)</span>
+          </div>
+
+          <label>离线保留策略：</label>
+          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;">
+            <input type="checkbox" checked /> 源不可访问或断连时标记 <code>offline</code>，保留已索引正文快照，禁止自动清理
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="closeModal('addSourceModal')">取消</button>
+        <button class="btn-primary" onclick="addNewSource()">添加并加入扫描队列</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 2: Index Queue & Benchmark Diagnostics (Sections 9, 11, 12) -->
+  <div id="diagModal" class="modal-backdrop">
+    <div class="modal" style="width:760px;">
+      <div class="modal-header">
+        <span>📊 索引调度队列、SQLite 存储诊断与基准指标</span>
+        <button class="win-btn" onclick="closeModal('diagModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="metric-grid">
+          <div class="metric-box">
+            <div style="font-size:11.5px;color:var(--text-muted)">已索引文件 / 总扫描</div>
+            <div class="metric-val">8,471 / 10,214</div>
+            <div style="font-size:11px;color:var(--green)">成功率 99.7% · 跳过 1,722</div>
+          </div>
+          <div class="metric-box">
+            <div style="font-size:11.5px;color:var(--text-muted)">SQLite 数据库体积 (WAL)</div>
+            <div class="metric-val">142.8 MB</div>
+            <div style="font-size:11px;color:var(--text-muted)">FTS5: 68MB · short_grams: 31MB</div>
+          </div>
+          <div class="metric-box">
+            <div style="font-size:11.5px;color:var(--text-muted)">检索延迟 (P50 / P95)</div>
+            <div class="metric-val">11ms / 38ms</div>
+            <div style="font-size:11px;color:var(--text-muted)">峰值内存: 186 MB · 子进程隔离</div>
+          </div>
+        </div>
+
+        <div style="font-weight:600;font-size:12.5px;">活跃解析与 OCR 子进程队列 (Durable Task Queue `index_jobs`)</div>
+        <table class="docx-table" style="margin:0;">
+          <thead>
+            <tr>
+              <th>Job ID</th>
+              <th>文件路径</th>
+              <th>任务类型</th>
+              <th>状态</th>
+              <th>隔离与保护机制</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><code>#J-9041</code></td>
+              <td><code>E:\Archive_Manuals\board_schem_scan.pdf</code></td>
+              <td>PDFium + Tesseract OCR (第14/42页)</td>
+              <td><span class="tag tag-chunk">running (Worker #1)</span></td>
+              <td>240 DPI · 单页超时 15s · 缓存键命中 13 页</td>
+            </tr>
+            <tr>
+              <td><code>#J-9042</code></td>
+              <td><code>D:\Docs\logs\realtime_build_output.log</code></td>
+              <td>连续写入防抖对账 (Reconcile)</td>
+              <td><span class="tag tag-ocr">queued (等待稳定)</span></td>
+              <td>解析前后核对 mtime_ns + size_bytes</td>
+            </tr>
+            <tr>
+              <td><code>#J-9038</code></td>
+              <td><code>\\nas\share\docs\drafts\corrupted_draft_v2.docx</code></td>
+              <td>OOXML 流式解包</td>
+              <td><span class="tag tag-skipped">failed (Attempt 2/2)</span></td>
+              <td>ZIP central directory 损坏，已回滚保留旧版本</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="showToast('已触发所有在线源增量对账 (Generation #419)')">🔄 立即增量对账</button>
+        <button class="btn-primary" onclick="closeModal('diagModal')">关闭</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL 3: System Settings (Section 10 & Requirements) -->
+  <div id="settingsModal" class="modal-backdrop">
+    <div class="modal">
+      <div class="modal-header">
+        <span>⚙ IndexFox · 索引狐 系统设置</span>
+        <button class="win-btn" onclick="closeModal('settingsModal')">✕</button>
+      </div>
+      <div class="modal-body">
+        <div class="form-grid">
+          <label>需求 06 · 关闭按钮行为：</label>
+          <select id="settingClosePolicy" class="select-box" onchange="applySettings()">
+            <option value="exit">默认：关闭即彻底退出 (停止后台任务并 checkpoint 队列)</option>
+            <option value="tray">驻留系统托盘：关闭窗口后继续后台增量索引与 OCR</option>
+          </select>
+
+          <label>需求 12 · 资源调度模式：</label>
+          <select id="settingResourceMode" class="select-box" onchange="applySettings()">
+            <option value="节能模式 (OCR并发 1)">节能模式 (低 I/O 优先级 · OCR 并发 1 页)</option>
+            <option value="均衡模式 (OCR并发 2)" selected>均衡模式 (默认 · 解析并发 4 · OCR 并发 2 页)</option>
+            <option value="高速模式 (OCR并发 4)">高速模式 (全速构建索引 · OCR 并发 4 页)</option>
+          </select>
+
+          <label>需求 03/17 · OCR 引擎：</label>
+          <div style="display:flex;flex-direction:column;gap:6px;">
+            <label style="display:flex;align-items:center;gap:6px;">
+              <input type="checkbox" checked /> 开启 PDF 无文本/低质量页自动按页 OCR 兜底
+            </label>
+            <select class="select-box">
+              <option value="tesseract">Tesseract 本地引擎 (默认 · chi_sim + eng · 240 DPI)</option>
+              <option value="paddle" disabled>PaddleOCR 插件接口 (V1.0 预留 Adapter)</option>
+            </select>
+          </div>
+
+          <label>需求 10 · 单文件上限：</label>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input type="number" class="form-input" value="100" style="width:90px;" />
+            <span style="font-size:12px;color:var(--text-muted)">MB (超限仅索引元数据，支持在预览页单文件强制索引)</span>
+          </div>
+
+          <label>需求 11 · 索引数据库路径：</label>
+          <div style="display:flex;gap:6px;">
+            <input type="text" id="settingDbPath" class="form-input" value="%LOCALAPPDATA%\IndexFox\data\index.db" />
+            <button class="btn-secondary" style="height:30px;font-size:11.5px;" onclick="simulateDbMigration()">迁移并校验</button>
+          </div>
+
+          <label>需求 21 · 系统字体读取与修改：</label>
+          <div style="display:flex;flex-direction:column;gap:8px;background:var(--bg-panel-alt);padding:10px 12px;border-radius:6px;border:1px solid var(--border);">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+              <span style="font-size:11.5px;color:var(--text-muted);" id="fontDetectStatus">
+                已通过系统字体枚举读取本机可用字体
+              </span>
+              <div style="display:flex;gap:6px;">
+                <button class="mini-btn" style="color:var(--accent);border-color:var(--accent);" onclick="querySystemFonts(true)">
+                  🔄 重新读取本机系统字体
+                </button>
+                <button class="mini-btn" onclick="resetDefaultFonts()">
+                  ↺ 恢复默认字体
+                </button>
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:130px 1fr;gap:8px;align-items:center;">
+              <span style="font-size:12px;color:var(--text-muted);">界面全局字体 (UI)：</span>
+              <select id="settingUiFont" class="select-box" onchange="applyFontSettings()"></select>
+
+              <span style="font-size:12px;color:var(--text-muted);">代码/文本预览字体：</span>
+              <select id="settingMonoFont" class="select-box" onchange="applyFontSettings()"></select>
+
+              <span style="font-size:12px;color:var(--text-muted);">预览区字号大小：</span>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <input type="range" id="settingFontSize" min="11" max="20" step="1" value="13" oninput="applyFontSettings()" style="flex:1;accent-color:var(--accent);" />
+                <span class="pill-tag" id="fontSizeValueLabel" style="min-width:46px;text-align:center;">13 px</span>
+              </div>
+            </div>
+
+            <div id="fontLiveSpecimen" style="padding:8px 10px;border-radius:4px;background:var(--bg-input);border:1px dashed var(--border-strong);font-size:12.5px;">
+              <div style="color:var(--text-muted);font-size:11px;margin-bottom:3px;">实时字体渲染样张 (缺失字体自动回退系统默认字体栈)：</div>
+              <div id="specimenUiLine" style="margin-bottom:4px;">[界面字体] IndexFox · 索引狐 — Linux 内核驱动与采集卡寄存器检索 (100% 本地只读)</div>
+              <div id="specimenMonoLine" style="font-family:var(--font-mono);color:var(--accent);">[代码/预览字体] VIDIOC_STREAMON | dma_alloc_coherent() | 0O 1lI a_b #include</div>
+            </div>
+          </div>
+
+          <label>需求 20 · 安全与隐私：</label>
+          <div style="font-size:11.5px;color:var(--text-muted);">
+            普通 SQLite (WAL) 无内建加密，依赖 Windows 文件系统权限控制；日志开启路径脱敏且不记录文档正文。
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn-secondary" onclick="showToast('已清理 OCR 渲染临时缓存，未删除任何用户原始文档 (Q30)')">🧹 清理临时缓存</button>
+        <button class="btn-primary" onclick="closeModal('settingsModal')">保存并应用</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast Notification -->
+  <div id="toast" class="toast">
+    <span style="color:var(--accent);font-size:16px;">🦊</span>
+    <span id="toastText"></span>
+  </div>
+
+  <script>
+    // =========================================================================
+    // 1. Mock Sources & Realistic Multi-Format Document Corpus (Covers Q01-Q31)
+    // =========================================================================
+    const SOURCES = [
+      {
+        id: 1,
+        kind: 'local',
+        root_path: 'D:\\Docs',
+        online_state: 'online',
+        file_count: '4,820',
+        scan_mode: 'notify 实时事件 + 启动对账',
+        desc: '本地主文档与驱动开发资料'
+      },
+      {
+        id: 2,
+        kind: 'smb',
+        root_path: '\\\\nas\\share\\docs',
+        online_state: 'online',
+        file_count: '3,150',
+        scan_mode: '定时轮询 (15m) + 离线保留',
+        desc: '团队 NAS 扫描件与历史归档'
+      },
+      {
+        id: 3,
+        kind: 'wsl',
+        root_path: '\\\\wsl.localhost\\Ubuntu\\home\\dev\\kernel',
+        online_state: 'offline',
+        file_count: '1,890',
+        scan_mode: 'WSL 实例已停止 · 仅缓存预览',
+        desc: 'WSL2 Ubuntu 内核源码树 (大小写敏感)'
+      },
+      {
+        id: 4,
+        kind: 'removable',
+        root_path: 'E:\\Archive_Manuals',
+        online_state: 'scanning',
+        file_count: '354 / 354',
+        scan_mode: '卷标 USB-ARCHIVE-01 对账中',
+        desc: '移动硬盘硬件手册库'
+      }
+    ];
+
+    const DOCUMENTS = [
+      {
+        id: 101,
+        source_id: 1,
+        filename: 'Linux_DMA_API_Guide.pdf',
+        display_path: 'D:\\Docs\\kernel\\Linux_DMA_API_Guide.pdf',
+        ext: 'pdf',
+        size_bytes: 14820400,
+        size_label: '14.1 MB',
+        mtime: '2026-11-18 16:40',
+        state: 'indexed',
+        encoding: 'PDFium 文本层 + 第39页 Tesseract OCR',
+        origin: 'mixed_ocr',
+        badges: ['混合型 PDF (原生+OCR)', '跨 Chunk 边界拼接'],
+        pages: [
+          {
+            page: 38,
+            origin: 'native',
+            chunk_id: 'Chunk #14 ⊕ Chunk #15 (重叠区 384 chars)',
+            locator: '第 38 页 · 原生文本层',
+            text: `3.2 Coherent DMA Mapping Guidelines for Linux Kernel Drivers\n\nWhen implementing a V4L2 video capture driver in the Linux kernel, streaming buffers must be allocated before handling the VIDIOC_STREAMON ioctl request. For consistent cache-coherent access between the device and CPU, use dma_alloc_coherent() rather than manual bounce buffers.\n\n[跨 Chunk 边界验证区 — Chunk #14 结尾 ⊕ Chunk #15 开头]\nThe Linux kernel memory subsystem guarantees that dma_alloc_coherent() returns both a CPU virtual address and a DMA bus address aligned to page boundaries. Always verify the return pointer before enabling hardware DMA engines.`
+          },
+          {
+            page: 39,
+            origin: 'ocr',
+            ocr_conf: '94.6%',
+            ocr_dpi: '240 DPI · chi_sim+eng',
+            chunk_id: 'Chunk #16 (Tesseract OCR)',
+            locator: '第 39 页 · 扫描页自动 OCR 兜底',
+            text: `[扫描附图 3-8：采集卡寄存器与 DMA 环形队列状态机]\n硬件采集卡寄存器说明：当 V4 通道收到 VIDIOC_STREAMON 启动信号后，内核驱动将 DMA 描述符写入 REG_DMA_DESC_BASE。若发生传输超时，请检查 dma_alloc_coherent() 分配的物理连续页是否跨越 4GB 边界。`
+          }
+        ]
+      },
+      {
+        id: 102,
+        source_id: 3,
+        filename: 'v4l2_camera_driver.c',
+        display_path: '\\\\wsl.localhost\\Ubuntu\\home\\dev\\kernel\\drivers\\media\\v4l2_camera_driver.c',
+        ext: 'code',
+        size_bytes: 48200,
+        size_label: '47.1 KB',
+        mtime: '2026-11-19 21:15',
+        state: 'indexed',
+        encoding: 'UTF-8 (LF · WSL 大小写敏感)',
+        origin: 'native',
+        badges: ['C 源码标识符', 'Chunk #03'],
+        lines: [
+          { ln: 1, text: `// SPDX-License-Identifier: GPL-2.0-only` },
+          { ln: 2, text: `#include <linux/module.h>` },
+          { ln: 3, text: `#include <linux/dma-mapping.h>` },
+          { ln: 4, text: `#include <linux/videodev2.h>` },
+          { ln: 5, text: `` },
+          { ln: 6, text: `/* Linux 内核 V4L2 视频采集驱动 — 环形队列初始化 (100% 零拷贝路径) */` },
+          { ln: 7, text: `static int cam_start_streaming(struct vb2_queue *q, unsigned int count) {` },
+          { ln: 8, text: `    struct cam_dev *dev = vb2_get_drv_priv(q);` },
+          { ln: 9, text: `    size_t desc_size = count * sizeof(struct cam_dma_desc);` },
+          { ln: 10, text: `    /* 使用 dma_alloc_coherent() 申请一致性 DMA 环形描述符内存 */` },
+          { ln: 11, text: `    dev->desc_vaddr = dma_alloc_coherent(dev->PCI_dev, desc_size, &dev->desc_paddr, GFP_KERNEL);` },
+          { ln: 12, text: `    if (!dev->desc_vaddr) return -ENOMEM;` },
+          { ln: 13, text: `    /* 响应 VIDIOC_STREAMON，激活采集卡寄存器 a_b 通道 (进度 100%) */` },
+          { ln: 14, text: `    cam_write_reg(dev, REG_CTRL_a_b, CAM_ENABLE_STREAM);` },
+          { ln: 15, text: `    pr_info("Linux kernel cam_drv: VIDIOC_STREAMON triggered at 100%% load\\n");` },
+          { ln: 16, text: `    return 0;` },
+          { ln: 17, text: `}` }
+        ]
+      },
+      {
+        id: 103,
+        source_id: 1,
+        filename: '内核驱动架构设计说明.docx',
+        display_path: 'D:\\Docs\\specs\\内核驱动架构设计说明.docx',
+        ext: 'docx',
+        size_bytes: 864200,
+        size_label: '844 KB',
+        mtime: '2026-11-20 10:05',
+        state: 'indexed',
+        encoding: 'OOXML ZIP + XML 流式解析 (纯文本/表格)',
+        origin: 'native',
+        badges: ['DOCX 跨 Run 合并', 'DOCX 表格单元格定位'],
+        docx_sections: [
+          {
+            locator: '段落 #04 · 跨 3 个 XML <w:r> Run 合并 (<w:r>Linux</w:r><w:r>内核</w:r><w:r>驱动</w:r>)',
+            text: `1. 概述：本规范定义了跨平台设备抽象层。在 Linux内核驱动 子系统中，字符设备通过 ioctl(VIDIOC_STREAMON) 启动数据流，并由 dma_alloc_coherent() 分配一致性物理页。`
+          },
+          {
+            locator: '段落 #09 · 正文段落',
+            text: `2. 平台差异：Windows 驱动采用 WDF (KMDF) 框架申请 CommonBuffer，而 Linux 驱动与 Windows 驱动在中断下半部调度上存在显著差异。`
+          },
+          {
+            locator: '表格 #1 · 跨平台驱动对比表 (3行 × 3列)',
+            is_table: true,
+            headers: ['特性维度', 'Linux 内核驱动实现', 'Windows WDF 驱动实现'],
+            rows: [
+              ['一致性 DMA 分配', 'dma_alloc_coherent() / DMA_ATTR_NON_CONSISTENT', 'WdfCommonBufferCreate()'],
+              ['流启动控制命令', 'VIDIOC_STREAMON (V4L2 ioctl)', 'IOCTL_AVSTREAM_STATE_RUN'],
+              ['负载与符号测试', '支持 100% 吞吐率与 a_b 寄存器校验', '支持 WHQL 签名认证']
+            ]
+          }
+        ]
+      },
+      {
+        id: 104,
+        source_id: 2,
+        filename: '嵌入式视觉系统扫描手册_1998.pdf',
+        display_path: '\\\\nas\\share\\docs\\manuals\\嵌入式视觉系统扫描手册_1998.pdf',
+        ext: 'pdf',
+        size_bytes: 28450000,
+        size_label: '27.1 MB',
+        mtime: '2026-10-12 09:20',
+        state: 'indexed',
+        encoding: '纯扫描 PDF (文本层为空 → Tesseract OCR 兜底)',
+        origin: 'ocr',
+        badges: ['纯扫描件自动 OCR', 'NAS SMB 共享源'],
+        pages: [
+          {
+            page: 12,
+            origin: 'ocr',
+            ocr_conf: '91.8%',
+            ocr_dpi: '240 DPI · chi_sim+eng',
+            chunk_id: 'Chunk #08 (Tesseract OCR)',
+            locator: '第 12 页 · 扫描图像 OCR 识别结果',
+            text: `第四章 采集卡寄存器编程接口 (Scanned Manual Page 12)\n\n4.1 采集卡寄存器映射表：当主机下发 VIDIOC_STREAMON 指令时，FPGA 内核驱动模块将锁存 a_b 双缓冲基地址。注意：老版本 Windows NT 与 Linux 驱动均需预留 16MB 连续物理内存。`
+          }
+        ]
+      },
+      {
+        id: 105,
+        source_id: 1,
+        filename: '硬件接口旧版日志_GBK.txt',
+        display_path: 'D:\\Docs\\legacy\\硬件接口旧版日志_GBK.txt',
+        ext: 'txt',
+        size_bytes: 19400,
+        size_label: '18.9 KB',
+        mtime: '2026-11-02 14:11',
+        state: 'indexed',
+        encoding: 'GBK (encoding_rs 自动探测 · 无乱码)',
+        origin: 'native',
+        badges: ['GBK 中文编码探测', '单/双字索引支持'],
+        lines: [
+          { ln: 1, text: `[2026-11-02 14:10:01] [INFO] 正在加载 V4 视频采集卡内核驱动模块...` },
+          { ln: 2, text: `[2026-11-02 14:10:02] [INFO] 编码自检：GBK 中文双字节与 ASCII 标识符混合日志` },
+          { ln: 3, text: `[2026-11-02 14:10:03] [DEBUG] 调用 dma_alloc_coherent() 成功，缓冲利用率 100%，通道 a_b 就绪` },
+          { ln: 4, text: `[2026-11-02 14:10:05] [INFO] 收到用户态 VIDIOC_STREAMON 请求，采集卡寄存器状态 = 0x0001` }
+        ]
+      },
+      {
+        id: 106,
+        source_id: 1,
+        filename: 'Cross_Platform_Porting_Notes.md',
+        display_path: 'D:\\Docs\\notes\\Cross_Platform_Porting_Notes.md',
+        ext: 'md',
+        size_bytes: 12800,
+        size_label: '12.5 KB',
+        mtime: '2026-11-20 18:30',
+        state: 'indexed',
+        encoding: 'UTF-8 Markdown',
+        origin: 'native',
+        badges: ['MD 源码/渲染双视图'],
+        lines: [
+          { ln: 1, text: `# Linux 与 Windows 驱动移植笔记` },
+          { ln: 2, text: `` },
+          { ln: 3, text: `在将采集卡驱动从 **Windows** 迁移至 **"Linux kernel"** 6.6 时，需注意以下核心差异：` },
+          { ln: 4, text: `- 头文件引入：使用 \`#include <linux/videodev2.h>\` 替代旧版宏。` },
+          { ln: 5, text: `- 内存分配：统一调用 \`dma_alloc_coherent()\`，确保 100% 满足 IOMMU 页表对齐。` },
+          { ln: 6, text: `- 状态切换：在 \`VIDIOC_STREAMON\` 回调中校验 \`a_b\` 双通道标志位。` }
+        ]
+      },
+      {
+        id: 107,
+        source_id: 4,
+        filename: 'sensor_calibration_utf16.txt',
+        display_path: 'E:\\Archive_Manuals\\sensor_calibration_utf16.txt',
+        ext: 'txt',
+        size_bytes: 34100,
+        size_label: '33.3 KB',
+        mtime: '2026-09-15 11:00',
+        state: 'indexed',
+        encoding: 'UTF-16LE (BOM 自动探测)',
+        origin: 'native',
+        badges: ['UTF-16LE BOM', '移动盘源'],
+        lines: [
+          { ln: 1, text: `Sensor Calibration Report (UTF-16LE BOM Encoded)` },
+          { ln: 2, text: `Target Platform: Linux kernel V4 sensor bridge (内建校准表)` },
+          { ln: 3, text: `Register Bank: a_b_offset = 0x1A, threshold = 100%, ioctl = VIDIOC_STREAMON` }
+        ]
+      },
+      {
+        id: 108,
+        source_id: 1,
+        filename: 'kernel_coredump_202611.log',
+        display_path: 'D:\\Docs\\dumps\\kernel_coredump_202611.log',
+        ext: 'code',
+        size_bytes: 260046848,
+        size_label: '248.0 MB (>100MB 上限)',
+        mtime: '2026-11-20 22:10',
+        state: 'skipped_size',
+        encoding: 'UTF-8 (默认超限跳过正文，仅索引文件名元数据)',
+        origin: 'metadata_only',
+        badges: ['>100MB 默认仅文件名可查 (Q19)'],
+        lines: [
+          { ln: 1, text: `[COREDUMP HEADER] Linux kernel panic dump — file size 248.0 MB` },
+          { ln: 2, text: `Call Trace: cam_start_streaming+0x42/0x110 [v4l2_camera_driver]` },
+          { ln: 3, text: `Faulting symbol: dma_alloc_coherent() during VIDIOC_STREAMON under 100% memory pressure` }
+        ]
+      },
+      {
+        id: 109,
+        source_id: 2,
+        filename: 'corrupted_draft_v2.docx',
+        display_path: '\\\\nas\\share\\docs\\drafts\\corrupted_draft_v2.docx',
+        ext: 'docx',
+        size_bytes: 512000,
+        size_label: '500 KB',
+        mtime: '2026-11-17 08:45',
+        state: 'failed',
+        error_message: 'OOXML ZIP Central Directory 签名损坏 (Error: InvalidZipHeader)；已隔离跳过，未阻塞索引队列。',
+        encoding: '损坏文档 (安全失败隔离)',
+        origin: 'failed',
+        badges: ['解析失败隔离 (M1.3)'],
+        docx_sections: []
+      },
+      {
+        id: 110,
+        source_id: 1,
+        filename: 'realtime_build_output.log',
+        display_path: 'D:\\Docs\\logs\\realtime_build_output.log',
+        ext: 'code',
+        size_bytes: 1420000,
+        size_label: '1.35 MB',
+        mtime: '2026-11-20 23:48',
+        state: 'pending',
+        error_message: '检测到连续高频写入，正在合并 notify 事件并等待 mtime/size 二次核验稳定 (防读取半成品，不谎报已全文覆盖)。',
+        encoding: '等待写入稳定 (Pending Queue)',
+        origin: 'pending',
+        badges: ['正在索引队列中 (Q21)'],
+        lines: []
+      }
+    ];
+
+    // Fuzzy dictionary of known indexed identifiers & Chinese terms for Damerau-Levenshtein
+    const LEXEME_DICTIONARY = [
+      'VIDIOC_STREAMON',
+      'dma_alloc_coherent',
+      'dma_alloc_coherent()',
+      'Linux',
+      'Windows',
+      'kernel',
+      '#include',
+      'videodev2',
+      'coredump',
+      '内核',
+      '驱动',
+      '内核驱动',
+      '采集卡寄存器'
+    ];
+
+    // Application Reactive State
+    let state = {
+      committedQuery: 'VIDIOC_STREAMON',
+      searchMode: 'exact',       // 'exact' | 'substring' | 'fuzzy'
+      caseSensitive: false,
+      formatFilter: 'all',
+      sourceFilter: 'all',       // 'all' or source_id
+      stateFilter: 'all',        // 'all' | 'indexed' | 'offline' | 'skipped_size' | 'pending_failed'
+      sortBy: 'relevance',
+      selectedDocId: 101,
+      activeHitIndex: 0,
+      totalHitsInSelectedDoc: 0,
+      pdfViewMode: 'canvas',     // 'canvas' | 'raw'
+      pdfPageIndex: 0,
+      mdViewMode: 'rendered',    // 'rendered' | 'source'
+      recordHistory: true,
+      history: [
+        { query: 'VIDIOC_STREAMON', mode: 'exact', filter: 'all', time: '23:48:10' },
+        { query: 'dma_alloc_coherent()', mode: 'exact', filter: 'all', time: '23:45:02' },
+        { query: 'dma_alloc_cohernt', mode: 'fuzzy', filter: 'all', time: '23:42:19' },
+        { query: '(Linux OR Windows) 驱动', mode: 'exact', filter: 'all', time: '23:39:50' },
+        { query: '"Linux kernel"', mode: 'exact', filter: 'all', time: '23:35:12' },
+        { query: '内核', mode: 'exact', filter: 'all', time: '23:30:44' }
+      ],
+      currentResults: []
+    };
+
+    // =========================================================================
+    // 2. Query AST Parser & Damerau-Levenshtein Edit Distance (Section 8)
+    // =========================================================================
+    function damerauLevenshtein(a, b) {
+      const s1 = a.toLowerCase();
+      const s2 = b.toLowerCase();
+      const len1 = s1.length, len2 = s2.length;
+      const dp = Array.from({ length: len1 + 1 }, () => Array(len2 + 1).fill(0));
+      for (let i = 0; i <= len1; i++) dp[i][0] = i;
+      for (let j = 0; j <= len2; j++) dp[0][j] = j;
+
+      for (let i = 1; i <= len1; i++) {
+        for (let j = 1; j <= len2; j++) {
+          const cost = s1[i - 1] === s2[j - 1] ? 0 : 1;
+          dp[i][j] = Math.min(
+            dp[i - 1][j] + 1,      // deletion
+            dp[i][j - 1] + 1,      // insertion
+            dp[i - 1][j - 1] + cost // substitution
+          );
+          if (i > 1 && j > 1 && s1[i - 1] === s2[j - 2] && s1[i - 2] === s2[j - 1]) {
+            dp[i][j] = Math.min(dp[i][j], dp[i - 2][j - 2] + cost); // transposition
+          }
+        }
+      }
+      return dp[len1][len2];
+    }
+
+    // Explicit AST Validator & Tokenizer supporting quotes, parens, OR, NOT (-term), implicit AND
+    function parseQueryAST(rawInput) {
+      const q = rawInput.trim();
+      if (!q) {
+        return { ok: true, astString: 'EmptyQuery (展示全部当前过滤范围文档)', terms: [], mustTerms: [], orTerms: [], notTerms: [], recallLayer: '元数据浏览' };
+      }
+
+      // 1. Validate balanced quotes
+      let quoteCount = 0;
+      let lastQuotePos = -1;
+      for (let i = 0; i < q.length; i++) {
+        if (q[i] === '"') {
+          quoteCount++;
+          lastQuotePos = i + 1;
+        }
+      }
+      if (quoteCount % 2 !== 0) {
+        return {
+          ok: false,
+          errorPos: lastQuotePos,
+          errorMsg: `语法解析失败 (位置 第 ${lastQuotePos} 字符)：双引号未闭合 (Unclosed phrase quote ")，请补全引号后再执行检索。`
+        };
+      }
+
+      // 2. Validate balanced parentheses (outside quotes)
+      let depth = 0;
+      let inQuotes = false;
+      let firstOpenPos = -1;
+      for (let i = 0; i < q.length; i++) {
+        if (q[i] === '"') inQuotes = !inQuotes;
+        if (inQuotes) continue;
+        // Check if paren is part of identifier like dma_alloc_coherent()
+        const isFuncCall = (q[i] === '(' && q[i + 1] === ')') || (q[i] === ')' && q[i - 1] === '(');
+        if (isFuncCall) continue;
+        if (q[i] === '(') {
+          if (depth === 0) firstOpenPos = i + 1;
+          depth++;
+        } else if (q[i] === ')') {
+          depth--;
+          if (depth < 0) {
+            return {
+              ok: false,
+              errorPos: i + 1,
+              errorMsg: `语法解析失败 (位置 第 ${i + 1} 字符)：发现多余的右括号 ')'，括号不匹配。`
+            };
+          }
+        }
+      }
+      if (depth !== 0) {
+        return {
+          ok: false,
+          errorPos: firstOpenPos,
+          errorMsg: `语法解析失败 (位置 第 ${firstOpenPos} 字符)：左括号 '(' 未闭合，请检查布尔分组表达式。`
+        };
+      }
+
+      // 3. Extract tokens (phrases, groups, -not, OR, terms)
+      const tokens = [];
+      const regex = /"([^"]+)"|\(([^)]+)\)|(\S+)/g;
+      let match;
+      while ((match = regex.exec(q)) !== null) {
+        if (match[1] !== undefined) {
+          tokens.push({ type: 'PHRASE', val: match[1] });
+        } else if (match[2] !== undefined && match[2].trim().length > 0) {
+          // Group like (Linux OR Windows)
+          const innerParts = match[2].split(/\s+/).filter(Boolean).filter(x => x.toUpperCase() !== 'OR');
+          tokens.push({ type: 'OR_GROUP', vals: innerParts });
+        } else if (match[3] !== undefined) {
+          const word = match[3];
+          if (word.toUpperCase() === 'OR' || word.toUpperCase() === 'AND') {
+            tokens.push({ type: 'OP', val: word.toUpperCase() });
+          } else if (word.startsWith('-') && word.length > 1) {
+            tokens.push({ type: 'NOT', val: word.slice(1) });
+          } else {
+            tokens.push({ type: 'TERM', val: word });
+          }
+        }
+      }
+
+      // Build logical structure
+      const mustTerms = [];
+      const orGroups = [];
+      const notTerms = [];
+      const highlightTerms = [];
+      const astParts = [];
+
+      for (let i = 0; i < tokens.length; i++) {
+        const t = tokens[i];
+        if (t.type === 'OP') continue;
+        const nextIsOr = tokens[i + 1] && tokens[i + 1].type === 'OP' && tokens[i + 1].val === 'OR';
+        const prevIsOr = tokens[i - 1] && tokens[i - 1].type === 'OP' && tokens[i - 1].val === 'OR';
+
+        if (t.type === 'NOT') {
+          notTerms.push(t.val);
+          astParts.push(`Not("${t.val}")`);
+        } else if (t.type === 'OR_GROUP') {
+          orGroups.push(t.vals);
+          t.vals.forEach(v => highlightTerms.push(v));
+          astParts.push(`Group(Or(${t.vals.map(v => `"${v}"`).join(', ')}))`);
+        } else if (nextIsOr || prevIsOr) {
+          if (!prevIsOr) {
+            const grp = [t.val];
+            let j = i;
+            while (tokens[j + 1] && tokens[j + 1].type === 'OP' && tokens[j + 1].val === 'OR' && tokens[j + 2]) {
+              grp.push(tokens[j + 2].val);
+              j += 2;
+            }
+            orGroups.push(grp);
+            grp.forEach(v => highlightTerms.push(v));
+            astParts.push(`Or(${grp.map(v => `"${v}"`).join(', ')})`);
+          }
+        } else if (t.type === 'PHRASE') {
+          mustTerms.push(t.val);
+          highlightTerms.push(t.val);
+          astParts.push(`Phrase("${t.val}")`);
+        } else if (t.type === 'TERM') {
+          mustTerms.push(t.val);
+          highlightTerms.push(t.val);
+          astParts.push(`Term("${t.val}")`);
+        }
+      }
+
+      // Determine Recall Layer description (Section 8.2)
+      const minLen = highlightTerms.reduce((m, s) => Math.min(m, [...s].length), 99);
+      let recallLayer = 'FTS5 trigram (>=3 Unicode 字符) + 原文偏移核验';
+      if (state.searchMode === 'fuzzy') {
+        recallLayer = 'Lexeme 词典 n-gram 粗筛 + Damerau-Levenshtein 编辑距离校验';
+      } else if (minLen === 1) {
+        recallLayer = 'short_grams 单字辅助倒排索引 (1-char gram → chunk_id，不走 trigram 全表扫)';
+      } else if (minLen === 2) {
+        recallLayer = 'short_grams 双字辅助倒排索引 (2-char gram → chunk_id)';
+      }
+      if (q.includes('%') || q.includes('_')) {
+        recallLayer += ' · SQL 通配符已按字面转义参数绑定';
+      }
+
+      const astString = astParts.length > 1 ? `And(${astParts.join(', ')})` : (astParts[0] || 'Empty');
+      return {
+        ok: true,
+        astString,
+        mustTerms,
+        orGroups,
+        notTerms,
+        highlightTerms,
+        recallLayer
+      };
+    }
+
+    // =========================================================================
+    // 3. Search Execution & Matching Engine (File-Level Boolean + Chunk Locator)
+    // =========================================================================
+    function getDocFullTextAndSnippets(doc) {
+      const blocks = [];
+      if (doc.ext === 'pdf' && doc.pages) {
+        doc.pages.forEach((p, idx) => {
+          blocks.push({
+            locator: p.locator,
+            pageIndex: idx,
+            origin: p.origin,
+            text: p.text
+          });
+        });
+      } else if (doc.ext === 'docx' && doc.docx_sections) {
+        doc.docx_sections.forEach((sec) => {
+          if (sec.is_table) {
+            const tableStr = [sec.headers.join(' | '), ...sec.rows.map(r => r.join(' | '))].join('\n');
+            blocks.push({ locator: sec.locator, origin: 'native', text: tableStr });
+          } else {
+            blocks.push({ locator: sec.locator, origin: 'native', text: sec.text });
+          }
+        });
+      } else if (doc.lines) {
+        doc.lines.forEach((l) => {
+          blocks.push({ locator: `第 ${l.ln} 行`, lineNum: l.ln, origin: 'native', text: l.text });
+        });
+      }
+      return blocks;
+    }
+
+    function executeCommittedSearch() {
+      const inputEl = document.getElementById('searchInput');
+      const rawQuery = inputEl.value;
+      state.committedQuery = rawQuery;
+      state.caseSensitive = document.getElementById('caseSensitiveCheck').checked;
+      state.sortBy = document.getElementById('sortSelect').value;
+
+      // Clear dirty indicator (Req 18 / Q26)
+      inputEl.classList.remove('dirty');
+      document.getElementById('dirtyHint').classList.remove('visible');
+
+      const parsed = parseQueryAST(rawQuery);
+      const astBanner = document.getElementById('astBanner');
+
+      if (!parsed.ok) {
+        inputEl.classList.add('has-error');
+        astBanner.classList.add('error');
+        document.getElementById('astTitle').textContent = '❌ 查询语法错误 (M2.1)：';
+        document.getElementById('astExpression').textContent = parsed.errorMsg;
+        document.getElementById('recallLayerBadge').textContent = `出错位置: Char #${parsed.errorPos}`;
+        return;
+      }
+
+      inputEl.classList.remove('has-error');
+      astBanner.classList.remove('error');
+      document.getElementById('astTitle').textContent = '✔ 查询计划 (AST)：';
+      document.getElementById('astExpression').textContent = parsed.astString;
+      document.getElementById('recallLayerBadge').textContent = `召回层: ${parsed.recallLayer}`;
+
+      // Record in history if non-empty & enabled (Req 19 / Q27)
+      if (rawQuery.trim() && state.recordHistory) {
+        const now = new Date();
+        const timeStr = now.toTimeString().split(' ')[0];
+        state.history = state.history.filter(
+          h => !(h.query === rawQuery.trim() && h.mode === state.searchMode && h.filter === state.formatFilter)
+        );
+        state.history.unshift({
+          query: rawQuery.trim(),
+          mode: state.searchMode,
+          filter: state.formatFilter,
+          time: timeStr
+        });
+        if (state.history.length > 100) state.history.pop();
+        renderHistoryList();
+      }
+
+      // Evaluate documents
+      const results = [];
+      let totalSnippets = 0;
+
+      DOCUMENTS.forEach(doc => {
+        const src = SOURCES.find(s => s.id === doc.source_id);
+        const effectiveState = (src && src.online_state === 'offline' && doc.state === 'indexed') ? 'offline' : doc.state;
+
+        // Apply Left Sidebar Filters
+        if (state.sourceFilter !== 'all' && doc.source_id !== state.sourceFilter) return;
+        if (state.formatFilter !== 'all' && doc.ext !== state.formatFilter) return;
+        if (state.stateFilter !== 'all') {
+          if (state.stateFilter === 'pending_failed') {
+            if (effectiveState !== 'pending' && effectiveState !== 'failed') return;
+          } else if (effectiveState !== state.stateFilter) {
+            return;
+          }
+        }
+
+        // If query is empty, show all matching filter docs
+        if (!rawQuery.trim()) {
+          results.push({
+            doc,
+            effectiveState,
+            matchKind: '目录浏览',
+            fuzzyNote: null,
+            score: 50,
+            hitCount: 1,
+            snippets: [{ locator: '文档概览', text: doc.display_path }]
+          });
+          totalSnippets += 1;
+          return;
+        }
+
+        // Pending or Failed files are never falsely reported as full-text matched (Section 2.1)
+        if (effectiveState === 'pending' || effectiveState === 'failed') {
+          if (state.stateFilter === 'pending_failed') {
+            results.push({
+              doc,
+              effectiveState,
+              matchKind: '未纳入全文索引',
+              fuzzyNote: null,
+              score: 1,
+              hitCount: 0,
+              snippets: [{ locator: effectiveState.toUpperCase(), text: doc.error_message }]
+            });
+          }
+          return;
+        }
+
+        // >100MB skipped_size files: ONLY match filename! (Req 10 / Q19)
+        if (effectiveState === 'skipped_size') {
+          const fnNorm = state.caseSensitive ? doc.filename : doc.filename.toLowerCase();
+          const matchedFn = parsed.highlightTerms.some(t => {
+            const tn = state.caseSensitive ? t : t.toLowerCase();
+            return fnNorm.includes(tn);
+          });
+          if (matchedFn || state.stateFilter === 'skipped_size') {
+            results.push({
+              doc,
+              effectiveState,
+              matchKind: '>100MB 仅文件名命中',
+              fuzzyNote: null,
+              score: 85,
+              hitCount: 1,
+              matchedTerms: parsed.highlightTerms,
+              snippets: [{
+                locator: '元数据索引 (skipped_size · 248.0 MB)',
+                text: `文件名命中 "${doc.filename}"。因超过 100MB 默认上限未建立全文索引，可在右侧预览点击 [强制全文索引]。`
+              }]
+            });
+            totalSnippets += 1;
+          }
+          return;
+        }
+
+        // Full-text evaluation across blocks
+        const blocks = getDocFullTextAndSnippets(doc);
+        const fullTextRaw = doc.filename + '\n' + blocks.map(b => b.text).join('\n');
+        const norm = (str) => state.caseSensitive ? str : str.toLowerCase();
+        const fullTextNorm = norm(fullTextRaw);
+
+        // 1. Check NOT terms (File-level NOT)
+        for (const nt of parsed.notTerms) {
+          if (fullTextNorm.includes(norm(nt))) return;
+        }
+
+        // 2. Check MUST terms and OR groups (with exact/substring vs fuzzy logic)
+        let allMustMatched = true;
+        let fuzzyReplacementMap = {}; // inputTerm -> { matchedLexeme, dist }
+        const effectiveHighlightTerms = [];
+
+        const checkTermInDoc = (term) => {
+          if (fullTextNorm.includes(norm(term))) {
+            effectiveHighlightTerms.push(term);
+            return { matched: true, exact: true };
+          }
+          if (state.searchMode === 'fuzzy' && term.length >= 3) {
+            // Look up closest lexeme in dictionary within edit distance <= 2
+            let bestLex = null;
+            let bestDist = 99;
+            for (const lex of LEXEME_DICTIONARY) {
+              const d = damerauLevenshtein(term, lex);
+              if (d > 0 && d <= 2 && d < bestDist && fullTextNorm.includes(norm(lex))) {
+                bestDist = d;
+                bestLex = lex;
+              }
+            }
+            if (bestLex) {
+              fuzzyReplacementMap[term] = { lexeme: bestLex, distance: bestDist };
+              effectiveHighlightTerms.push(bestLex);
+              return { matched: true, exact: false };
+            }
+          }
+          return { matched: false };
+        };
+
+        let hasFuzzyHit = false;
+        for (const mt of parsed.mustTerms) {
+          const res = checkTermInDoc(mt);
+          if (!res.matched) {
+            allMustMatched = false;
+            break;
+          }
+          if (!res.exact) hasFuzzyHit = true;
+        }
+        if (!allMustMatched) return;
+
+        for (const grp of parsed.orGroups) {
+          let groupMatched = false;
+          for (const gt of grp) {
+            const res = checkTermInDoc(gt);
+            if (res.matched) {
+              groupMatched = true;
+              if (!res.exact) hasFuzzyHit = true;
+            }
+          }
+          if (!groupMatched) return;
+        }
+
+        // Collect matching snippets from blocks
+        const matchedSnippets = [];
+        let docHitCount = 0;
+
+        blocks.forEach((b, bIdx) => {
+          const bNorm = norm(b.text);
+          let blockHits = 0;
+          effectiveHighlightTerms.forEach(ht => {
+            const hNorm = norm(ht);
+            if (!hNorm) return;
+            let pos = 0;
+            while ((pos = bNorm.indexOf(hNorm, pos)) !== -1) {
+              blockHits++;
+              pos += hNorm.length;
+            }
+          });
+          if (blockHits > 0) {
+            docHitCount += blockHits;
+            matchedSnippets.push({
+              locator: b.locator,
+              blockIndex: bIdx,
+              pageIndex: b.pageIndex,
+              origin: b.origin,
+              text: b.text,
+              hitsInBlock: blockHits
+            });
+          }
+        });
+
+        // Filename-only match fallback
+        if (matchedSnippets.length === 0) {
+          docHitCount = 1;
+          matchedSnippets.push({
+            locator: '文件名精确命中',
+            blockIndex: 0,
+            text: doc.filename
+          });
+        }
+
+        // Rank priority: Filename exact (100) > Body strict continuous (80) > Substring (70) > Fuzzy (50)
+        const fnMatched = effectiveHighlightTerms.some(ht => norm(doc.filename).includes(norm(ht)));
+        let baseScore = hasFuzzyHit ? 50 : (state.searchMode === 'exact' ? 85 : 75);
+        if (fnMatched) baseScore += 25;
+        baseScore += Math.min(docHitCount * 2, 15);
+
+        const fuzzyKeys = Object.keys(fuzzyReplacementMap);
+        const fuzzyNote = fuzzyKeys.length > 0
+          ? `拼写容错 d=${fuzzyReplacementMap[fuzzyKeys[0]].distance}: "${fuzzyKeys[0]}" → 命中原文 "${fuzzyReplacementMap[fuzzyKeys[0]].lexeme}"`
+          : null;
+
+        results.push({
+          doc,
+          effectiveState,
+          matchKind: hasFuzzyHit ? '拼写容错命中' : (fnMatched ? '文件名+正文命中' : '正文严格连续命中'),
+          fuzzyNote,
+          score: baseScore,
+          hitCount: docHitCount,
+          matchedTerms: [...new Set(effectiveHighlightTerms)],
+          snippets: matchedSnippets
+        });
+        totalSnippets += docHitCount;
+      });
+
+      // Sort results (Req 15)
+      results.sort((a, b) => {
+        if (state.sortBy === 'hits') return b.hitCount - a.hitCount;
+        if (state.sortBy === 'size') return b.doc.size_bytes - a.doc.size_bytes;
+        if (state.sortBy === 'mtime') return b.doc.mtime.localeCompare(a.doc.mtime);
+        if (state.sortBy === 'filename') return a.doc.filename.localeCompare(b.doc.filename);
+        if (state.sortBy === 'path') return a.doc.display_path.localeCompare(b.doc.display_path);
+        return b.score - a.score;
+      });
+
+      state.currentResults = results;
+      state.activeHitIndex = 0;
+
+      // Update status bar stats
+      document.getElementById('statFileCount').textContent = results.length;
+      document.getElementById('statHitCount').textContent = totalSnippets;
+      document.getElementById('resultsCountBadge').textContent = `${results.length} 份文件 · ${totalSnippets} 处命中`;
+      document.getElementById('statElapsed').textContent = `${(8.4 + results.length * 1.3).toFixed(1)} ms`;
+
+      if (results.length > 0) {
+        if (!results.some(r => r.doc.id === state.selectedDocId)) {
+          state.selectedDocId = results[0].doc.id;
+        }
+      }
+
+      renderSourcesList();
+      renderResultsList();
+      renderPreviewPane();
+    }
+
+    // =========================================================================
+    // 4. Rendering Functions: Left Sources, Center Results, Right Preview
+    // =========================================================================
+    function renderSourcesList() {
+      const container = document.getElementById('sourcesList');
+      let html = `
+        <div class="source-card ${state.sourceFilter === 'all' ? 'active' : ''}" onclick="selectSourceFilter('all')">
+          <div class="source-top">
+            <span class="source-path">🌐 全部已添加目录 (4 个源)</span>
+            <span class="pill-tag">10,214 文件</span>
+          </div>
+          <div class="source-meta">
+            <span>本地 / SMB / WSL / 移动盘</span>
+            <span style="color:var(--green)">已索引 8,471</span>
+          </div>
+        </div>
+      `;
+
+      SOURCES.forEach(src => {
+        const isSelected = state.sourceFilter === src.id;
+        const stateLabel = src.online_state === 'online'
+          ? '在线 ●'
+          : (src.online_state === 'offline' ? '已离线 ○ (缓存可查)' : '扫描对账中 ◐');
+        const stateColor = src.online_state === 'online'
+          ? 'var(--green)'
+          : (src.online_state === 'offline' ? 'var(--amber)' : 'var(--blue)');
+
+        html += `
+          <div class="source-card ${isSelected ? 'active' : ''}" onclick="selectSourceFilter(${src.id})">
+            <div class="source-top">
+              <span class="source-path">${escapeHtml(src.root_path)}</span>
+              <span class="status-dot ${src.online_state}"></span>
+            </div>
+            <div style="font-size:11px;color:var(--text-muted);margin-bottom:3px;">${escapeHtml(src.desc)}</div>
+            <div class="source-meta">
+              <span class="pill-tag">${src.kind.toUpperCase()}</span>
+              <span style="color:${stateColor};font-weight:600;">${stateLabel}</span>
+            </div>
+            <div class="source-actions" onclick="event.stopPropagation()">
+              <span style="font-size:10.5px;color:var(--text-dim)">${src.file_count} 文件</span>
+              <div style="display:flex;gap:4px;">
+                <button class="mini-btn" onclick="toggleSourceOnline(${src.id})" title="测试需求 Q20：模拟断开或恢复连接，验证不会误删既有索引">
+                  ${src.online_state === 'offline' ? '🔌 恢复连接' : '⚡ 模拟断连'}
+                </button>
+              </div>
+            </div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+
+      // Update state filter counts
+      let cAll = 0, cIdx = 0, cOff = 0, cSkip = 0, cPend = 0;
+      DOCUMENTS.forEach(d => {
+        const s = SOURCES.find(x => x.id === d.source_id);
+        const eff = (s && s.online_state === 'offline' && d.state === 'indexed') ? 'offline' : d.state;
+        cAll++;
+        if (eff === 'indexed') cIdx++;
+        else if (eff === 'offline') cOff++;
+        else if (eff === 'skipped_size') cSkip++;
+        else cPend++;
+      });
+      document.getElementById('countAll').textContent = cAll;
+      document.getElementById('countIndexed').textContent = cIdx;
+      document.getElementById('countOffline').textContent = cOff;
+      document.getElementById('countSkipped').textContent = cSkip;
+      document.getElementById('countPendingFailed').textContent = cPend;
+    }
+
+    function renderResultsList() {
+      const container = document.getElementById('resultsListContainer');
+      const results = state.currentResults;
+
+      if (results.length === 0) {
+        const isStrictTypo = (state.searchMode !== 'fuzzy' && state.committedQuery.trim().toLowerCase().includes('cohernt'));
+        container.innerHTML = `
+          <div style="padding:28px 16px;text-align:center;color:var(--text-muted);">
+            <div style="font-size:28px;margin-bottom:8px;">🔍</div>
+            <div style="font-weight:600;color:var(--text-main);margin-bottom:6px;">当前严格/过滤条件下未找到匹配文档</div>
+            <div style="font-size:12px;margin-bottom:14px;">
+              遵循设计方案第 2 节：精确与子串模式<b>绝不混入近似拼写结果</b>；未完成索引或已跳过的文件也不会谎报为已全文覆盖。
+            </div>
+            ${isStrictTypo ? `
+              <div style="padding:12px;border-radius:6px;background:var(--purple-soft);border:1px solid var(--purple);color:var(--text-main);margin-bottom:12px;">
+                💡 检测到输入词 <code>${escapeHtml(state.committedQuery)}</code> 可能是 <code>dma_alloc_coherent</code> 的拼写错误 (编辑距离 d=1)。<br/>
+                <button class="btn-primary" style="margin-top:8px;height:30px;font-size:12px;" onclick="setSearchMode('fuzzy');executeCommittedSearch();">
+                  ✨ 切换到 [拼写容错 Fuzzy] 模式重新检索
+                </button>
+              </div>
+            ` : ''}
+          </div>
+        `;
+        return;
+      }
+
+      let html = '';
+      results.forEach((item, idx) => {
+        const doc = item.doc;
+        const isSelected = doc.id === state.selectedDocId;
+        const extClass = `ext-${doc.ext}`;
+
+        let badgesHtml = `<span class="tag ${item.fuzzyNote ? 'tag-fuzzy' : 'tag-exact'}">${escapeHtml(item.matchKind)}</span>`;
+        if (item.fuzzyNote) {
+          badgesHtml += `<span class="tag tag-fuzzy">${escapeHtml(item.fuzzyNote)}</span>`;
+        }
+        if (item.effectiveState === 'offline') {
+          badgesHtml += `<span class="tag tag-offline">⚡ 源已离线 · 缓存快照</span>`;
+        }
+        if (item.effectiveState === 'skipped_size') {
+          badgesHtml += `<span class="tag tag-skipped">>100MB 仅文件名</span>`;
+        }
+        if (doc.origin === 'ocr' || doc.origin === 'mixed_ocr') {
+          badgesHtml += `<span class="tag tag-ocr">🔍 含 OCR 识别页</span>`;
+        }
+        doc.badges.forEach(b => {
+          badgesHtml += `<span class="tag tag-chunk">${escapeHtml(b)}</span>`;
+        });
+
+        let snippetsHtml = '';
+        item.snippets.slice(0, 3).forEach((snip, sIdx) => {
+          const highlightedSnippet = highlightText(snip.text.slice(0, 170) + (snip.text.length > 170 ? '...' : ''), item.matchedTerms || []);
+          snippetsHtml += `
+            <div class="snippet-item ${isSelected && sIdx === 0 ? 'active-hit' : ''}" onclick="selectDocAndSnippet(${doc.id}, ${snip.pageIndex || 0}, ${sIdx}, event)">
+              <div class="snippet-locator">
+                <span>📍 ${escapeHtml(snip.locator)}</span>
+                ${snip.origin === 'ocr' ? '<span style="color:var(--amber)">[Tesseract OCR]</span>' : ''}
+              </div>
+              <div>${highlightedSnippet}</div>
+            </div>
+          `;
+        });
+
+        html += `
+          <div class="result-card ${isSelected ? 'selected' : ''}" onclick="selectDocument(${doc.id})">
+            <div class="result-header">
+              <div class="result-title-row">
+                <div class="file-title">
+                  <span class="ext-badge ${extClass}">${doc.ext}</span>
+                  <span>${ idx + 1 }. ${highlightText(doc.filename, item.matchedTerms || [])}</span>
+                </div>
+                <span class="pill-tag" style="color:var(--accent);font-weight:700;">${item.hitCount} 命中</span>
+              </div>
+              <div class="file-subpath">${escapeHtml(doc.display_path)} · ${doc.size_label} · ${doc.mtime}</div>
+              <div class="badge-row">${badgesHtml}</div>
+            </div>
+            <div class="snippet-list">${snippetsHtml}</div>
+          </div>
+        `;
+      });
+
+      container.innerHTML = html;
+    }
+
+    function renderPreviewPane() {
+      const resultItem = state.currentResults.find(r => r.doc.id === state.selectedDocId)
+        || { doc: DOCUMENTS[0], effectiveState: DOCUMENTS[0].state, matchedTerms: [] };
+      const doc = resultItem.doc;
+      const terms = resultItem.matchedTerms || [];
+
+      // Header & Format Badge
+      const extBadge = document.getElementById('previewExtBadge');
+      extBadge.className = `ext-badge ext-${doc.ext}`;
+      extBadge.textContent = doc.ext;
+      document.getElementById('previewFileTitle').textContent = doc.filename;
+
+      // Format-specific view switcher (PDF canvas/raw, MD rendered/source)
+      const switchContainer = document.getElementById('formatViewSwitch');
+      if (doc.ext === 'pdf' && doc.pages) {
+        switchContainer.innerHTML = `
+          <button class="seg-btn ${state.pdfViewMode === 'canvas' ? 'active' : ''}" onclick="setPdfViewMode('canvas')">PDF 页面渲染</button>
+          <button class="seg-btn ${state.pdfViewMode === 'raw' ? 'active' : ''}" onclick="setPdfViewMode('raw')">提取文本层/Chunk</button>
+        `;
+      } else if (doc.ext === 'md') {
+        switchContainer.innerHTML = `
+          <button class="seg-btn ${state.mdViewMode === 'rendered' ? 'active' : ''}" onclick="setMdViewMode('rendered')">MD 渲染预览</button>
+          <button class="seg-btn ${state.mdViewMode === 'source' ? 'active' : ''}" onclick="setMdViewMode('source')">源码视图 (带行号)</button>
+        `;
+      } else {
+        switchContainer.innerHTML = '';
+      }
+
+      // Info bar
+      const src = SOURCES.find(s => s.id === doc.source_id);
+      const offlineWarning = (resultItem.effectiveState === 'offline')
+        ? `<span class="tag tag-offline">⚡ 源目录当前离线 (${escapeHtml(src.root_path)}) · 当前展示 SQLite 已缓存的 display_text 快照</span>`
+        : `<span style="color:var(--green)">● 源文件在线只读</span>`;
+
+      document.getElementById('previewInfoBar').innerHTML = `
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
+          ${offlineWarning}
+          <span>编码/解析器: <b style="color:var(--text-main)">${escapeHtml(doc.encoding)}</b></span>
+          <span>大小: <b>${doc.size_label}</b></span>
+        </div>
+        <div style="display:flex;gap:6px;">
+          <button class="mini-btn" onclick="showToast('已在资源管理器中定位: ${escapeJs(doc.display_path)}')">📂 打开所在目录</button>
+        </div>
+      `;
+
+      const container = document.getElementById('previewContainer');
+
+      // Special Case 1: >100MB skipped_size file (Req 10 / Q19)
+      if (doc.state === 'skipped_size') {
+        container.innerHTML = `
+          <div class="docx-sheet" style="text-align:center;padding:36px 24px;">
+            <div style="font-size:32px;margin-bottom:10px;">📦</div>
+            <h3 style="margin-bottom:8px;">该文件大小 (${doc.size_label}) 超过默认 100 MB 限制</h3>
+            <p style="color:var(--text-muted);max-width:520px;margin:0 auto 16px;">
+              根据需求 10 与验收用例 Q19：超大文件默认状态为 <code>skipped_size</code>，仅建立文件名与元数据索引以保障常规检索与内存安全。您可以对此单文件手动触发强制全文索引（依然受分块内存与超时保护）。
+            </p>
+            <button class="btn-primary" onclick="forceIndexLargeFile(${doc.id})">
+              ⚡ 对此单文件执行强制全文索引 (解除 skipped_size)
+            </button>
+          </div>
+        `;
+        updateHitMarks(0);
+        return;
+      }
+
+      // Special Case 2: Failed or Pending file
+      if (doc.state === 'failed' || doc.state === 'pending') {
+        container.innerHTML = `
+          <div class="docx-sheet" style="padding:28px;">
+            <h3 style="color:var(--amber);margin-bottom:8px;">⚠️ 该文件当前未完成全文索引 (${doc.state.toUpperCase()})</h3>
+            <p style="color:var(--text-muted);margin-bottom:12px;">${escapeHtml(doc.error_message)}</p>
+            <div style="font-size:12px;color:var(--text-dim);">
+              遵循需求第 2 节约束：正在索引或解析失败的文件严格区分状态，绝不伪造已全文覆盖。
+            </div>
+          </div>
+        `;
+        updateHitMarks(0);
+        return;
+      }
+
+      // Format 1: PDF Preview (Native Page vs Scanned OCR Page + Page Navigation)
+      if (doc.ext === 'pdf' && doc.pages) {
+        if (state.pdfPageIndex >= doc.pages.length) state.pdfPageIndex = 0;
+        const curPage = doc.pages[state.pdfPageIndex];
+
+        const pageButtons = doc.pages.map((p, idx) => `
+          <button class="mini-btn" style="${idx === state.pdfPageIndex ? 'background:var(--accent);color:#fff;border-color:var(--accent);font-weight:700;' : ''}" onclick="setPdfPage(${idx})">
+            第 ${p.page} 页 (${p.origin === 'ocr' ? 'OCR 扫描页' : '原生文本层'})
+          </button>
+        `).join('');
+
+        if (state.pdfViewMode === 'canvas') {
+          container.innerHTML = `
+            <div class="pdf-stage">
+              <div style="display:flex;align-items:center;justify-content:space-between;width:100%;max-width:720px;background:var(--bg-panel);padding:8px 12px;border-radius:6px;border:1px solid var(--border);">
+                <div style="display:flex;align-items:center;gap:6px;">
+                  <span style="font-size:12px;color:var(--text-muted);">跳转命中页码：</span>
+                  ${pageButtons}
+                </div>
+                <span class="pill-tag">${curPage.chunk_id}</span>
+              </div>
+
+              <div class="pdf-page-sheet ${curPage.origin === 'ocr' ? 'scanned-mode' : ''}">
+                <div class="pdf-page-header">
+                  <span>${escapeHtml(doc.filename)} — Page ${curPage.page}</span>
+                  <span>${curPage.origin === 'ocr' ? `🔍 Tesseract OCR (${curPage.ocr_dpi} · 置信度 ${curPage.ocr_conf})` : '📄 PDFium Native Text Layer'}</span>
+                </div>
+
+                ${curPage.origin === 'ocr' ? `
+                  <div class="pdf-bbox-box">
+                    <span class="pdf-bbox-label">OCR BBox 识别文本区域 · 置信度 ${curPage.ocr_conf}</span>
+                    <div style="white-space:pre-wrap;">${highlightText(curPage.text, terms)}</div>
+                  </div>
+                ` : `
+                  <div style="white-space:pre-wrap;">${highlightText(curPage.text, terms)}</div>
+                `}
+              </div>
+            </div>
+          `;
+        } else {
+          container.innerHTML = `
+            <div class="code-viewer" style="padding:14px;">
+              ${doc.pages.map(p => `
+                <div class="chunk-boundary-bar">
+                  <span>📍 Page ${p.page} · ${escapeHtml(p.chunk_id)}</span>
+                  <span>origin: "${p.origin}"</span>
+                </div>
+                <div style="padding:12px;white-space:pre-wrap;">${highlightText(p.text, terms)}</div>
+              `).join('')}
+            </div>
+          `;
+        }
+        refreshHitMarksInDOM();
+        return;
+      }
+
+      // Format 2: DOCX Plain Text Paragraphs & Table Cells (Req 08, Q16, Q17)
+      if (doc.ext === 'docx' && doc.docx_sections) {
+        let secHtml = `
+          <div style="margin-bottom:12px;padding:8px 12px;border-radius:5px;background:var(--blue-soft);color:var(--blue);font-size:12px;">
+            📄 <b>DOCX 纯文本与段落/表格定位预览 (需求 08)</b>：仅提取正文段落、跨 <code>&lt;w:r&gt;</code> Run 合并文本及表格单元格内容，不还原复杂 Office 排版。
+          </div>
+        `;
+        doc.docx_sections.forEach(sec => {
+          if (sec.is_table) {
+            secHtml += `
+              <div class="docx-para hit-para">
+                <div class="docx-para-meta">
+                  <span>📊 ${escapeHtml(sec.locator)}</span>
+                  <span>OOXML &lt;w:tbl&gt;</span>
+                </div>
+                <table class="docx-table">
+                  <thead>
+                    <tr>${sec.headers.map(h => `<th>${highlightText(h, terms)}</th>`).join('')}</tr>
+                  </thead>
+                  <tbody>
+                    ${sec.rows.map(r => `<tr>${r.map(c => `<td>${highlightText(c, terms)}</td>`).join('')}</tr>`).join('')}
+                  </tbody>
+                </table>
+              </div>
+            `;
+          } else {
+            secHtml += `
+              <div class="docx-para hit-para">
+                <div class="docx-para-meta">
+                  <span>📍 ${escapeHtml(sec.locator)}</span>
+                  <span>OOXML &lt;w:p&gt;</span>
+                </div>
+                <div>${highlightText(sec.text, terms)}</div>
+              </div>
+            `;
+          }
+        });
+        container.innerHTML = `<div class="docx-sheet">${secHtml}</div>`;
+        refreshHitMarksInDOM();
+        return;
+      }
+
+      // Format 3: Markdown Rendered vs Source View
+      if (doc.ext === 'md' && state.mdViewMode === 'rendered') {
+        const joined = doc.lines.map(l => l.text).join('\n');
+        container.innerHTML = `
+          <div class="docx-sheet" style="line-height:1.75;">
+            <div style="margin-bottom:10px;font-size:11px;color:var(--text-dim);font-family:var(--font-mono);">Markdown 渲染预览 (可点击右上角切换源码行号视图)</div>
+            <div style="white-space:pre-wrap;">${highlightText(joined, terms)}</div>
+          </div>
+        `;
+        refreshHitMarksInDOM();
+        return;
+      }
+
+      // Format 4: Code / TXT with Line Numbers & Chunk Boundary Indicator
+      if (doc.lines) {
+        let linesHtml = `
+          <div class="chunk-boundary-bar">
+            <span>📦 Chunk #01 (2.4 KiB · original_char_offsets 映射完备)</span>
+            <span>编码: ${escapeHtml(doc.encoding)}</span>
+          </div>
+        `;
+        doc.lines.forEach(l => {
+          const highlightedLine = highlightText(l.text, terms);
+          const hasHit = highlightedLine.includes('<mark');
+          linesHtml += `
+            <div class="code-line ${hasHit ? 'hit-line' : ''}">
+              <span class="line-num">${l.ln}</span>
+              <span class="line-text">${highlightedLine || ' '}</span>
+            </div>
+          `;
+        });
+        container.innerHTML = `<div class="code-viewer">${linesHtml}</div>`;
+        refreshHitMarksInDOM();
+      }
+    }
+
+    // =========================================================================
+    // 5. Hit Highlighting & Prev/Next Hit Navigation ([上一个命中] / [下一个命中])
+    // =========================================================================
+    function escapeHtml(str) {
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;');
+    }
+
+    function escapeJs(str) {
+      return String(str).replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+    }
+
+    function escapeRegExp(str) {
+      return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    }
+
+    function highlightText(rawText, terms) {
+      const safeText = escapeHtml(rawText);
+      if (!terms || terms.length === 0) return safeText;
+      const validTerms = terms.filter(Boolean).map(t => escapeHtml(t));
+      if (validTerms.length === 0) return safeText;
+
+      // Sort longer terms first so phrases/identifiers match before substrings
+      validTerms.sort((a, b) => b.length - a.length);
+      const pattern = validTerms.map(escapeRegExp).join('|');
+      const flags = state.caseSensitive ? 'g' : 'gi';
+      const regex = new RegExp(`(${pattern})`, flags);
+      return safeText.replace(regex, '<mark class="hit-mark">$1</mark>');
+    }
+
+    function refreshHitMarksInDOM() {
+      const marks = document.querySelectorAll('#previewContainer mark.hit-mark');
+      state.totalHitsInSelectedDoc = marks.length;
+      if (marks.length === 0) {
+        updateHitMarks(0);
+        return;
+      }
+      if (state.activeHitIndex >= marks.length) state.activeHitIndex = 0;
+      if (state.activeHitIndex < 0) state.activeHitIndex = marks.length - 1;
+
+      marks.forEach((m, idx) => {
+        if (idx === state.activeHitIndex) {
+          m.classList.add('active-mark');
+          m.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        } else {
+          m.classList.remove('active-mark');
+        }
+      });
+      document.getElementById('hitCounterBadge').textContent = `${state.activeHitIndex + 1} / ${marks.length}`;
+    }
+
+    function updateHitMarks(count) {
+      state.totalHitsInSelectedDoc = count;
+      document.getElementById('hitCounterBadge').textContent = `0 / 0`;
+    }
+
+    function stepHit(delta) {
+      const marks = document.querySelectorAll('#previewContainer mark.hit-mark');
+      if (marks.length === 0) return;
+      state.activeHitIndex = (state.activeHitIndex + delta + marks.length) % marks.length;
+      refreshHitMarksInDOM();
+    }
+
+    // =========================================================================
+    // 6. User Interaction Handlers & Acceptance Test Scenarios
+    // =========================================================================
+    function markQueryDirty() {
+      const inputEl = document.getElementById('searchInput');
+      if (inputEl.value !== state.committedQuery) {
+        inputEl.classList.add('dirty');
+        document.getElementById('dirtyHint').classList.add('visible');
+      } else {
+        inputEl.classList.remove('dirty');
+        document.getElementById('dirtyHint').classList.remove('visible');
+      }
+    }
+
+    function setSearchMode(mode) {
+      state.searchMode = mode;
+      document.querySelectorAll('#modeSegmented .seg-btn').forEach(btn => {
+        btn.classList.toggle('active', btn.dataset.mode === mode);
+      });
+      const notice = document.getElementById('searchModeNotice');
+      if (mode === 'exact') {
+        notice.textContent = '严格精确模式：连续短语/子串核验，绝不混入拼写近似词';
+      } else if (mode === 'substring') {
+        notice.textContent = '子串模式：任意位置包含输入片段，默认忽略 ASCII 大小写';
+      } else {
+        notice.textContent = '拼写容错模式：Damerau-Levenshtein 编辑距离校验，精确命中始终优先';
+      }
+      markQueryDirty();
+    }
+
+    function setFormatFilter(ext, btnEl) {
+      state.formatFilter = ext;
+      document.querySelectorAll('[data-ext]').forEach(b => b.classList.remove('active'));
+      btnEl.classList.add('active');
+      executeCommittedSearch();
+    }
+
+    function selectSourceFilter(sourceId) {
+      state.sourceFilter = sourceId;
+      executeCommittedSearch();
+    }
+
+    function setStateFilter(st, rowEl) {
+      state.stateFilter = st;
+      document.querySelectorAll('#stateFilterList .state-row').forEach(r => r.classList.remove('active'));
+      rowEl.classList.add('active');
+      executeCommittedSearch();
+    }
+
+    function selectDocument(docId) {
+      state.selectedDocId = docId;
+      state.activeHitIndex = 0;
+      state.pdfPageIndex = 0;
+      renderResultsList();
+      renderPreviewPane();
+    }
+
+    function selectDocAndSnippet(docId, pageIndex, snippetIdx, event) {
+      event.stopPropagation();
+      state.selectedDocId = docId;
+      state.pdfPageIndex = pageIndex || 0;
+      state.activeHitIndex = snippetIdx;
+      renderResultsList();
+      renderPreviewPane();
+    }
+
+    function setPdfPage(pIdx) {
+      state.pdfPageIndex = pIdx;
+      state.activeHitIndex = 0;
+      renderPreviewPane();
+    }
+
+    function setPdfViewMode(vMode) {
+      state.pdfViewMode = vMode;
+      renderPreviewPane();
+    }
+
+    function setMdViewMode(vMode) {
+      state.mdViewMode = vMode;
+      renderPreviewPane();
+    }
+
+    function toggleSourceOnline(sourceId) {
+      const src = SOURCES.find(s => s.id === sourceId);
+      if (!src) return;
+      if (src.online_state === 'offline') {
+        src.online_state = 'online';
+        showToast(`已恢复连接 ${src.root_path}：启动增量对账 Generation #420`);
+      } else {
+        src.online_state = 'offline';
+        showToast(`⚡ 已模拟断开 ${src.root_path} (Q20)：源标记为 offline，既有索引与文本缓存完整保留，未触发任何误删！`);
+      }
+      executeCommittedSearch();
+    }
+
+    function forceIndexLargeFile(docId) {
+      const doc = DOCUMENTS.find(d => d.id === docId);
+      if (!doc) return;
+      doc.state = 'indexed';
+      doc.encoding = 'UTF-8 (用户已手动强制全文索引 · 分块受内存限额保护)';
+      doc.badges = ['>100MB 已强制全文索引 (Q19)'];
+      showToast(`已完成对 ${doc.filename} (248.0 MB) 的强制分块与全文索引！`);
+      executeCommittedSearch();
+    }
+
+    // Acceptance Matrix Scenario Runner
+    function runScenario(code, chipEl) {
+      document.querySelectorAll('.scenario-chip').forEach(c => c.classList.remove('active'));
+      if (chipEl) chipEl.classList.add('active');
+
+      // Reset filters for clean demonstration
+      state.formatFilter = 'all';
+      document.querySelectorAll('[data-ext]').forEach(b => b.classList.toggle('active', b.dataset.ext === 'all'));
+      state.sourceFilter = 'all';
+      state.stateFilter = 'all';
+      document.querySelectorAll('#stateFilterList .state-row').forEach(r => r.classList.toggle('active', r.dataset.state === 'all'));
+
+      const inputEl = document.getElementById('searchInput');
+
+      const scenarios = {
+        q04: { q: 'VIDIOC_STREAMON', mode: 'exact', msg: 'Q04: 英文与下划线代码标识符在 PDF、C 源码、DOCX 中原样精确命中' },
+        q05: { q: 'dma_alloc_coherent()', mode: 'exact', msg: 'Q05: 带括号与下划线的函数调用按字面字符匹配，括号不被误当作布尔分组' },
+        q10: { q: 'dma_alloc_cohernt', mode: 'fuzzy', msg: 'Q10: 拼写容错模式 (漏字母 e，编辑距离 d=1) 召回原文 dma_alloc_coherent 并展示解释标签' },
+        q01: { q: '内', mode: 'exact', msg: 'Q01: 单字检索走 short_grams (1-char 倒排辅助表)，规避 FTS5 trigram <3 字符限制，绝不静默漏检' },
+        q02: { q: '内核', mode: 'exact', msg: 'Q02: 双字中文检索走 short_grams (2-char 倒排辅助表)，精准命中“Linux内核驱动”' },
+        q08: { q: '(Linux OR Windows) 驱动', mode: 'exact', msg: 'Q08: 括号布尔组合表达式解析为 Group(Or("Linux","Windows")) And Term("驱动")' },
+        q07: { q: 'Linux -Windows', mode: 'exact', msg: 'Q07: 文件级 AND/NOT 求值：过滤掉同时包含 Windows 的文档，仅保留纯 Linux 文档' },
+        q09: { q: '"Linux kernel"', mode: 'exact', msg: 'Q09/Q12: 双引号连续短语严格匹配，并通过相邻 Chunk 重叠拼接校验跨块边界' },
+        q06: { q: '#include OR 100%', mode: 'exact', msg: 'Q06/Q11: 前置 # 与 SQL 通配符 % 均按字面字符参数绑定，绝不触发 LIKE 全表误匹配' },
+        q14: { q: '采集卡寄存器', mode: 'exact', msg: 'Q14/Q15: 命中纯扫描 PDF 与混合 PDF 的第 39 页 Tesseract OCR 识别文本层' },
+        q19: { q: 'coredump', mode: 'exact', msg: 'Q19: >100MB 超限文件默认 skipped_size 仅文件名可查，点击右侧预览按钮可强制全文索引' },
+        q32: { q: 'VIDIOC_STREAMON', mode: 'exact', msg: 'Q32: 打开设置读取本机系统已安装字体，支持实时切换界面字体、代码预览字体及字号' },
+        syntax_err: { q: '(Linux OR "kernel', mode: 'exact', msg: 'M2.1: 演示非法查询表达式（引号与括号未闭合），精确报告出错字符位置' }
+      };
+
+      const sc = scenarios[code];
+      if (!sc) return;
+      inputEl.value = sc.q;
+      setSearchMode(sc.mode);
+      executeCommittedSearch();
+      if (code === 'q32') {
+        openFontSettings();
+      }
+      showToast(sc.msg);
+    }
+
+    // History Popover Management (Req 19 / Q27)
+    function renderHistoryList() {
+      document.getElementById('historyCountLabel').textContent = state.history.length;
+      const listEl = document.getElementById('historyList');
+      if (state.history.length === 0) {
+        listEl.innerHTML = `<div style="padding:14px;text-align:center;color:var(--text-dim);">暂无搜索历史记录</div>`;
+        return;
+      }
+      listEl.innerHTML = state.history.map((h, i) => `
+        <div class="history-item" onclick="applyHistoryItem(${i})">
+          <div style="display:flex;align-items:center;gap:8px;">
+            <code style="font-family:var(--font-mono);color:var(--text-main);font-weight:600;">${escapeHtml(h.query)}</code>
+            <span class="pill-tag">${h.mode}</span>
+          </div>
+          <span style="font-size:11px;color:var(--text-dim);">${h.time}</span>
+        </div>
+      `).join('');
+    }
+
+    function toggleHistoryPopover(e) {
+      e.stopPropagation();
+      const pop = document.getElementById('historyPopover');
+      pop.classList.toggle('open');
+      renderHistoryList();
+    }
+
+    function applyHistoryItem(idx) {
+      const item = state.history[idx];
+      if (!item) return;
+      document.getElementById('searchInput').value = item.query;
+      setSearchMode(item.mode);
+      document.getElementById('historyPopover').classList.remove('open');
+      executeCommittedSearch();
+    }
+
+    function toggleHistoryRecording() {
+      state.recordHistory = document.getElementById('historyEnableToggle').checked;
+      showToast(state.recordHistory ? '已开启搜索历史记录 (上限 100 条)' : '已暂停新增搜索历史 (Q27)');
+    }
+
+    function clearAllHistory(e) {
+      e.stopPropagation();
+      state.history = [];
+      renderHistoryList();
+      showToast('已清空全部搜索历史记录 (Q27)');
+    }
+
+    function clearSearchInput() {
+      const inputEl = document.getElementById('searchInput');
+      inputEl.value = '';
+      markQueryDirty();
+      inputEl.focus();
+    }
+
+    // Modals & System Settings
+    function openModal(id) {
+      document.getElementById(id).classList.add('open');
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('open');
+    }
+
+    function updateSourcePlaceholder() {
+      const kind = document.getElementById('newSourceKind').value;
+      const input = document.getElementById('newSourcePath');
+      if (kind === 'local') input.value = 'D:\\Projects\\Embedded_BSP';
+      else if (kind === 'smb') input.value = '\\\\192.168.10.50\\team_share\\datasheets';
+      else if (kind === 'wsl') input.value = '\\\\wsl.localhost\\Ubuntu-24.04\\home\\developer\\src';
+      else input.value = 'F:\\Portable_Docs';
+    }
+
+    function addNewSource() {
+      const kind = document.getElementById('newSourceKind').value;
+      const path = document.getElementById('newSourcePath').value.trim();
+      if (!path) return;
+      SOURCES.push({
+        id: Date.now(),
+        kind,
+        root_path: path,
+        online_state: 'scanning',
+        file_count: '扫描对账中...',
+        scan_mode: '初次枚举 + 指纹建立',
+        desc: '用户新增索引目录'
+      });
+      closeModal('addSourceModal');
+      renderSourcesList();
+      showToast(`已添加目录源 ${path} 并压入持久化扫描队列！`);
+    }
+
+    function applySettings() {
+      const closePol = document.getElementById('settingClosePolicy').value;
+      const resMode = document.getElementById('settingResourceMode').value;
+      document.getElementById('closeBehaviorTag').textContent = closePol === 'exit'
+        ? '关闭策略: 关闭即彻底退出'
+        : '关闭策略: 最小化到系统托盘';
+      document.getElementById('resourceModeTag').textContent = `调度: ${resMode}`;
+    }
+
+    function simulateDbMigration() {
+      const newPath = document.getElementById('settingDbPath').value;
+      document.getElementById('dbPathFooter').textContent = `DB: ${newPath} (SQLite WAL · 单写多读)`;
+      showToast(`已完成数据库迁移与一致性校验 (Q24)：若中途失败将自动回滚原索引路径`);
+    }
+
+    function simulateWindowClose() {
+      const closePol = document.getElementById('settingClosePolicy').value;
+      if (closePol === 'exit') {
+        showToast('Q25 关闭即退出模式：已停止所有后台解析/OCR 子进程，执行 WAL checkpoint 并保存未完成队列后彻底退出。');
+      } else {
+        showToast('Q25 托盘驻留模式：主窗口已隐藏至 Windows 系统托盘，后台增量索引继续运行。');
+      }
+    }
+
+    function toggleTheme() {
+      const isLight = document.body.getAttribute('data-theme') === 'light';
+      if (isLight) {
+        document.body.removeAttribute('data-theme');
+      } else {
+        document.body.setAttribute('data-theme', 'light');
+      }
+    }
+
+    // =========================================================================
+    // 7. System Font Enumeration & Customization (Requirement 21 / Q32)
+    // =========================================================================
+    const CANDIDATE_SYSTEM_FONTS = [
+      // Common Windows / Cross-platform UI & CJK fonts
+      { family: 'Microsoft YaHei', label: '微软雅黑 (Microsoft YaHei)', category: 'ui' },
+      { family: 'Segoe UI', label: 'Segoe UI (Windows 默认西文)', category: 'ui' },
+      { family: 'SimSun', label: '宋体 (SimSun)', category: 'ui' },
+      { family: 'NSimSun', label: '新宋体 (NSimSun)', category: 'ui' },
+      { family: 'SimHei', label: '黑体 (SimHei)', category: 'ui' },
+      { family: 'DengXian', label: '等线 (DengXian)', category: 'ui' },
+      { family: 'KaiTi', label: '楷体 (KaiTi)', category: 'ui' },
+      { family: 'FangSong', label: '仿宋 (FangSong)', category: 'ui' },
+      { family: 'Source Han Sans SC', label: '思源黑体 (Source Han Sans SC)', category: 'ui' },
+      { family: 'Noto Sans CJK SC', label: 'Noto Sans CJK SC', category: 'ui' },
+      { family: 'WenQuanYi Micro Hei', label: '文泉驿微米黑 (WenQuanYi Micro Hei)', category: 'ui' },
+      { family: 'PingFang SC', label: '苹方 (PingFang SC)', category: 'ui' },
+      { family: 'Arial', label: 'Arial', category: 'ui' },
+      { family: 'Tahoma', label: 'Tahoma', category: 'ui' },
+      { family: 'Verdana', label: 'Verdana', category: 'ui' },
+      { family: 'Ubuntu', label: 'Ubuntu', category: 'ui' },
+      { family: 'DejaVu Sans', label: 'DejaVu Sans', category: 'ui' },
+      { family: 'Liberation Sans', label: 'Liberation Sans', category: 'ui' },
+      // Monospace / Coding fonts
+      { family: 'Cascadia Code', label: 'Cascadia Code (Windows Terminal 等宽)', category: 'mono' },
+      { family: 'Cascadia Mono', label: 'Cascadia Mono', category: 'mono' },
+      { family: 'Consolas', label: 'Consolas (Windows 经典代码等宽)', category: 'mono' },
+      { family: 'JetBrains Mono', label: 'JetBrains Mono', category: 'mono' },
+      { family: 'Fira Code', label: 'Fira Code', category: 'mono' },
+      { family: 'Source Code Pro', label: 'Source Code Pro', category: 'mono' },
+      { family: 'Courier New', label: 'Courier New', category: 'mono' },
+      { family: 'Ubuntu Mono', label: 'Ubuntu Mono', category: 'mono' },
+      { family: 'DejaVu Sans Mono', label: 'DejaVu Sans Mono', category: 'mono' },
+      { family: 'Liberation Mono', label: 'Liberation Mono', category: 'mono' },
+      { family: 'Noto Sans Mono', label: 'Noto Sans Mono', category: 'mono' }
+    ];
+
+    let detectedSystemFonts = [];
+
+    // Canvas font metrics probe to check if a font family is genuinely installed on the host OS
+    function isFontInstalledOnSystem(fontFamily) {
+      try {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        const sampleText = 'mmmmmmmmmmlli10O索引狐内核驱动';
+        const baseFonts = ['monospace', 'sans-serif', 'serif'];
+        const baseWidths = {};
+        baseFonts.forEach(base => {
+          ctx.font = `72px ${base}`;
+          baseWidths[base] = ctx.measureText(sampleText).width;
+        });
+        for (const base of baseFonts) {
+          ctx.font = `72px "${fontFamily}", ${base}`;
+          const w = ctx.measureText(sampleText).width;
+          if (w !== baseWidths[base]) {
+            return true;
+          }
+        }
+      } catch (e) {
+        // Ignore canvas errors
+      }
+      return false;
+    }
+
+    async function querySystemFonts(isManualTrigger = false) {
+      const foundMap = new Map();
+
+      // 1. Try Chromium / Edge WebView2 Local Font Access API if available and triggered by user gesture
+      let usedNativeApi = false;
+      if (isManualTrigger && typeof window.queryLocalFonts === 'function') {
+        try {
+          const localFonts = await window.queryLocalFonts();
+          if (localFonts && localFonts.length > 0) {
+            usedNativeApi = true;
+            localFonts.forEach(f => {
+              if (f.family && !foundMap.has(f.family)) {
+                foundMap.set(f.family, {
+                  family: f.family,
+                  label: `${f.fullName || f.family} (本机系统读取)`,
+                  installed: true,
+                  category: /mono|code|consol|courier|fixed|term/i.test(f.family) ? 'mono' : 'ui'
+                });
+              }
+            });
+          }
+        } catch (err) {
+          // Fallback to canvas metric enumeration if permission denied or blocked in sandbox
+        }
+      }
+
+      // 2. Probe standard system fonts via Canvas glyph width measurement
+      let installedCount = 0;
+      CANDIDATE_SYSTEM_FONTS.forEach(item => {
+        if (!foundMap.has(item.family)) {
+          const installed = isFontInstalledOnSystem(item.family);
+          if (installed) installedCount++;
+          foundMap.set(item.family, {
+            family: item.family,
+            label: `${item.label} ${installed ? '✓ [本机已安装]' : '(Windows 标准预设)'}`,
+            installed,
+            category: item.category
+          });
+        }
+      });
+
+      detectedSystemFonts = Array.from(foundMap.values());
+      // Sort installed fonts first
+      detectedSystemFonts.sort((a, b) => Number(b.installed) - Number(a.installed));
+
+      const totalInstalled = detectedSystemFonts.filter(f => f.installed).length;
+      const statusEl = document.getElementById('fontDetectStatus');
+      if (statusEl) {
+        statusEl.innerHTML = usedNativeApi
+          ? `✔ 已通过 WebView2 Local Font API 读取本机 <b>${totalInstalled}</b> 款系统字体`
+          : `✔ 已扫描系统字体库：检测到本机已安装 <b>${totalInstalled}</b> 款字体（共列出 ${detectedSystemFonts.length} 款可选字体）`;
+      }
+
+      populateFontSelects();
+      if (isManualTrigger) {
+        showToast(`已读取本机系统字体列表：共检测到 ${totalInstalled} 款本机已安装字体 (Q32)`);
+      }
+    }
+
+    function populateFontSelects() {
+      const uiSelect = document.getElementById('settingUiFont');
+      const monoSelect = document.getElementById('settingMonoFont');
+      if (!uiSelect || !monoSelect) return;
+
+      const savedUi = localStorage.getItem('indexfox_ui_font') || '__default_ui__';
+      const savedMono = localStorage.getItem('indexfox_mono_font') || '__default_mono__';
+      const savedSize = localStorage.getItem('indexfox_font_size') || '13';
+
+      let uiOptions = `<option value="__default_ui__">系统默认界面字体栈 (Segoe UI / Microsoft YaHei / system-ui)</option>`;
+      let monoOptions = `<option value="__default_mono__">系统默认代码等宽字体栈 (Cascadia Code / Consolas / monospace)</option>`;
+
+      detectedSystemFonts.forEach(f => {
+        const opt = `<option value="${escapeHtml(f.family)}">${escapeHtml(f.label)}</option>`;
+        uiOptions += opt;
+        if (f.category === 'mono') {
+          monoOptions = monoOptions.replace('</option>', `</option>${opt}`);
+        } else {
+          monoOptions += opt;
+        }
+      });
+
+      uiSelect.innerHTML = uiOptions;
+      monoSelect.innerHTML = monoOptions;
+
+      if ([...uiSelect.options].some(o => o.value === savedUi)) uiSelect.value = savedUi;
+      if ([...monoSelect.options].some(o => o.value === savedMono)) monoSelect.value = savedMono;
+      document.getElementById('settingFontSize').value = savedSize;
+
+      applyFontSettings(false);
+    }
+
+    function applyFontSettings(saveToStorage = true) {
+      const uiSelect = document.getElementById('settingUiFont');
+      const monoSelect = document.getElementById('settingMonoFont');
+      const sizeInput = document.getElementById('settingFontSize');
+      if (!uiSelect || !monoSelect || !sizeInput) return;
+
+      const uiVal = uiSelect.value;
+      const monoVal = monoSelect.value;
+      const sizeVal = sizeInput.value;
+
+      const defaultSans = '"Segoe UI", "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif';
+      const defaultMono = '"Cascadia Code", "JetBrains Mono", "Consolas", monospace';
+
+      const nextSans = uiVal === '__default_ui__' ? defaultSans : `"${uiVal}", ${defaultSans}`;
+      const nextMono = monoVal === '__default_mono__' ? defaultMono : `"${monoVal}", ${defaultMono}`;
+
+      document.documentElement.style.setProperty('--font-sans', nextSans);
+      document.documentElement.style.setProperty('--font-mono', nextMono);
+      document.documentElement.style.setProperty('--preview-font-size', `${sizeVal}px`);
+
+      document.getElementById('fontSizeValueLabel').textContent = `${sizeVal} px`;
+      const specimenUi = document.getElementById('specimenUiLine');
+      const specimenMono = document.getElementById('specimenMonoLine');
+      if (specimenUi && specimenMono) {
+        specimenUi.style.fontFamily = nextSans;
+        specimenMono.style.fontFamily = nextMono;
+        specimenMono.style.fontSize = `${sizeVal}px`;
+      }
+
+      const uiShort = uiVal === '__default_ui__' ? '默认UI' : uiVal;
+      const monoShort = monoVal === '__default_mono__' ? '默认等宽' : monoVal;
+      const tagEl = document.getElementById('currentFontTag');
+      if (tagEl) {
+        tagEl.textContent = `字体: ${uiShort} / ${monoShort} (${sizeVal}px)`;
+      }
+
+      if (saveToStorage) {
+        try {
+          localStorage.setItem('indexfox_ui_font', uiVal);
+          localStorage.setItem('indexfox_mono_font', monoVal);
+          localStorage.setItem('indexfox_font_size', sizeVal);
+        } catch (e) {}
+      }
+    }
+
+    function resetDefaultFonts() {
+      document.getElementById('settingUiFont').value = '__default_ui__';
+      document.getElementById('settingMonoFont').value = '__default_mono__';
+      document.getElementById('settingFontSize').value = '13';
+      applyFontSettings(true);
+      showToast('已恢复系统默认界面与代码预览字体栈 (Q32)');
+    }
+
+    function openFontSettings() {
+      openModal('settingsModal');
+      const fontSelect = document.getElementById('settingUiFont');
+      if (fontSelect) {
+        fontSelect.focus();
+      }
+    }
+
+    let toastTimer = null;
+    function showToast(msg) {
+      const t = document.getElementById('toast');
+      document.getElementById('toastText').textContent = msg;
+      t.classList.add('show');
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => t.classList.remove('show'), 4500);
+    }
+
+    // Keyboard Shortcuts (Req 18: Enter in search box triggers search; Up/Down navigates results)
+    document.addEventListener('DOMContentLoaded', () => {
+      const searchInput = document.getElementById('searchInput');
+
+      searchInput.addEventListener('input', () => {
+        // Requirement 18 / Q26: NEVER auto-search on input! Only mark dirty.
+        markQueryDirty();
+      });
+
+      searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Enter') {
+          e.preventDefault();
+          document.getElementById('historyPopover').classList.remove('open');
+          executeCommittedSearch();
+        }
+      });
+
+      document.addEventListener('click', (e) => {
+        const pop = document.getElementById('historyPopover');
+        if (pop && !pop.contains(e.target)) {
+          pop.classList.remove('open');
+        }
+      });
+
+      // Global Up/Down result navigation when not typing in inputs
+      document.addEventListener('keydown', (e) => {
+        if (document.activeElement && ['INPUT', 'SELECT', 'TEXTAREA'].includes(document.activeElement.tagName)) {
+          return;
+        }
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault();
+          const list = state.currentResults;
+          if (!list.length) return;
+          const idx = list.findIndex(r => r.doc.id === state.selectedDocId);
+          const nextIdx = e.key === 'ArrowDown'
+            ? Math.min(list.length - 1, idx + 1)
+            : Math.max(0, idx - 1);
+          selectDocument(list[nextIdx].doc.id);
+        }
+      });
+
+      // Initialize system font enumeration & initial render
+      querySystemFonts(false);
+      executeCommittedSearch();
+    });
+  </script>
+</body>
+</html>

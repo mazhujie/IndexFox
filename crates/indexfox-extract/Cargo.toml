@@ -1,0 +1,18 @@
+[package]
+name = "indexfox-extract"
+version.workspace = true
+edition.workspace = true
+
+[features]
+default = []
+pdfium = ["dep:pdfium-render", "dep:image"]
+
+[dependencies]
+indexfox-core = { workspace = true }
+encoding_rs = { workspace = true }
+zip = { workspace = true }
+quick-xml = { workspace = true }
+thiserror = { workspace = true }
+pdfium-render = { workspace = true, optional = true }
+image = { version = "0.25", default-features = false, features = ["png"], optional = true }
+tempfile = "3"

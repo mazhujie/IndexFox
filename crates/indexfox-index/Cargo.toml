@@ -1,0 +1,12 @@
+[package]
+name = "indexfox-index"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+indexfox-core = { workspace = true }
+rusqlite = { workspace = true }
+serde = { workspace = true }
+serde_json = { workspace = true }
+thiserror = { workspace = true }
+chrono = { workspace = true }

@@ -1,0 +1,18 @@
+[package]
+name = "indexfox-cli"
+version.workspace = true
+edition.workspace = true
+
+[features]
+default = ["pdfium"]
+pdfium = ["indexfox-extract/pdfium"]
+
+[dependencies]
+indexfox-core = { workspace = true }
+indexfox-source = { workspace = true }
+indexfox-extract = { workspace = true }
+indexfox-index = { workspace = true }
+indexfox-query = { workspace = true }
+clap = { workspace = true }
+serde_json = { workspace = true }
+anyhow = "1"

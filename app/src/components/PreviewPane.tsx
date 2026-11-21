@@ -1,0 +1,397 @@
+import { useEffect, useRef, useState } from "react";
+import type { FormEvent } from "react";
+import type {
+  FileResult,
+  PdfPageState,
+  PreviewState,
+  SearchHit,
+  SourceLocator,
+} from "../types";
+import {
+  fileStateLabel,
+  formatBytes,
+  formatModified,
+  locatorSummary,
+  originLabel,
+} from "../types";
+import {
+  charRangeForBytes,
+  hitKey,
+  lineHasActiveRange,
+  rangesForLine,
+  splitPreviewLines,
+  type CharRange,
+} from "../text";
+import { HighlightedText } from "./HighlightedText";
+
+interface PreviewPaneProps {
+  selectedFile: FileResult | null;
+  activeHit: SearchHit | null;
+  selectedHitKey: string | null;
+  preview: PreviewState;
+  pdf: PdfPageState;
+  pdfView: "page" | "text";
+  pdfPage: number;
+  onPdfViewChange: (view: "page" | "text") => void;
+  onPdfPageChange: (page: number) => void;
+  onRetryPreview: () => void;
+  onRetryPdf: () => void;
+  onSelectHit: (hit: SearchHit) => void;
+}
+
+export function PreviewPane({
+  selectedFile,
+  activeHit,
+  selectedHitKey,
+  preview,
+  pdf,
+  pdfView,
+  pdfPage,
+  onPdfViewChange,
+  onPdfPageChange,
+  onRetryPreview,
+  onRetryPdf,
+  onSelectHit,
+}: PreviewPaneProps) {
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [pageDraft, setPageDraft] = useState(String(pdfPage));
+
+  useEffect(() => {
+    setPageDraft(String(pdfPage));
+  }, [pdfPage]);
+
+  useEffect(() => {
+    const container = contentRef.current;
+    if (!container) return;
+    const mark = container.querySelector<HTMLElement>('mark[data-active-hit="true"]');
+    mark?.scrollIntoView({ block: "center", inline: "nearest" });
+  }, [selectedHitKey, preview.data, preview.status, pdfView]);
+
+  if (!selectedFile) {
+    return (
+      <section className="pane preview-pane" aria-label="文档预览">
+        <div className="pane-header">
+          <div>
+            <h2>预览</h2>
+            <span className="pane-subtitle">文本、代码与 PDF 原页</span>
+          </div>
+        </div>
+        <div className="pane-body">
+          <div className="pane-empty tall">
+            <div className="empty-icon" aria-hidden="true">
+              ◫
+            </div>
+            <h3>选择一条结果</h3>
+            <p>右侧会显示缓存文本；PDF 同时支持真实页面渲染。</p>
+          </div>
+        </div>
+      </section>
+    );
+  }
+
+  const isPdf = selectedFile.ext.toLowerCase() === "pdf";
+  const hits = selectedFile.hits;
+  const hitIndex = Math.max(
+    0,
+    hits.findIndex((hit) => selectedHitKey === hitKey(selectedFile.file_id, hit)),
+  );
+  const stateLabel = fileStateLabel(selectedFile.state);
+  const previewData = preview.status === "ready" ? preview.data : null;
+  const cacheAvailable = Boolean(previewData?.text);
+  const positionLabel =
+    isPdf && pdfView === "page"
+      ? `第 ${pdfPage} 页`
+      : locatorSummary(previewData?.locator ?? activeHit?.locator ?? null);
+  const ranges = buildPreviewRanges(
+    selectedFile,
+    previewData?.text ?? "",
+    preview.status === "ready" ? preview.chunkId : null,
+    selectedHitKey,
+  );
+  const activeMapped = ranges.some((range) => range.active);
+
+  function submitPage(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const next = Number.parseInt(pageDraft, 10);
+    if (Number.isFinite(next) && next >= 1) onPdfPageChange(next);
+  }
+
+  function stepHit(delta: number) {
+    if (hits.length === 0) return;
+    const next = (hitIndex + delta + hits.length) % hits.length;
+    onSelectHit(hits[next]);
+  }
+
+  return (
+    <section className="pane preview-pane" aria-label="文档预览">
+      <div className="preview-toolbar">
+        <div className="preview-title-wrap">
+          <span className={`ext-badge ext-${selectedFile.ext.toLowerCase()}`}>
+            {selectedFile.ext || "file"}
+          </span>
+          <div className="preview-title-text">
+            <h2 title={selectedFile.filename}>{selectedFile.filename}</h2>
+            <span className="mono muted">{selectedFile.path}</span>
+          </div>
+        </div>
+        <div className="preview-actions">
+          {isPdf && (
+            <div className="segmented" role="group" aria-label="PDF 预览方式">
+              <button
+                type="button"
+                className={`seg-button ${pdfView === "page" ? "active" : ""}`}
+                onClick={() => onPdfViewChange("page")}
+                aria-pressed={pdfView === "page"}
+              >
+                PDF 原页
+              </button>
+              <button
+                type="button"
+                className={`seg-button ${pdfView === "text" ? "active" : ""}`}
+                onClick={() => onPdfViewChange("text")}
+                aria-pressed={pdfView === "text"}
+              >
+                文本命中
+              </button>
+            </div>
+          )}
+          {hits.length > 0 && (
+            <div className="hit-nav" role="group" aria-label="命中位置导航">
+              <button
+                type="button"
+                className="mini-button"
+                onClick={() => stepHit(-1)}
+                aria-label="上一处命中"
+              >
+                ↑
+              </button>
+              <span className="hit-counter">
+                {hitIndex + 1} / {hits.length}
+              </span>
+              <button
+                type="button"
+                className="mini-button"
+                onClick={() => stepHit(1)}
+                aria-label="下一处命中"
+              >
+                ↓
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="preview-info">
+        <span className="meta-item">
+          <span className="meta-label">位置</span>
+          <span>{positionLabel}</span>
+        </span>
+        <span className="meta-item">
+          <span className="meta-label">文本来源</span>
+          <span>{originLabel(previewData?.origin ?? activeHit?.origin ?? "native")}</span>
+        </span>
+        <span className="meta-item">
+          <span className="meta-label">大小</span>
+          <span>{formatBytes(selectedFile.size_bytes)}</span>
+        </span>
+        <span className="meta-item">
+          <span className="meta-label">修改</span>
+          <span>{formatModified(selectedFile.mtime_ns)}</span>
+        </span>
+        {stateLabel && <span className="tag tag-warn">{stateLabel}</span>}
+      </div>
+
+      {isPdf && pdfView === "page" ? (
+        <div className="pane-body preview-body pdf-body" ref={contentRef}>
+          <div className="pdf-toolbar">
+            <form className="pdf-page-form" onSubmit={submitPage}>
+              <label htmlFor="pdf-page-number">页码</label>
+              <input
+                id="pdf-page-number"
+                className="text-input page-input mono"
+                inputMode="numeric"
+                value={pageDraft}
+                onChange={(event) => setPageDraft(event.target.value.replace(/[^\d]/g, ""))}
+                aria-label="PDF 页码"
+              />
+              <button type="submit" className="mini-button">
+                跳转
+              </button>
+            </form>
+            <span className="muted">当前渲染第 {pdfPage} 页</span>
+          </div>
+
+          {pdf.status === "loading" || pdf.status === "idle" ? (
+            <div className="pdf-loading" role="status">
+              <span className="spinner" aria-hidden="true" />
+              正在渲染 PDF 第 {pdfPage} 页…
+            </div>
+          ) : pdf.status === "error" ? (
+            <div className="pdf-error" role="alert">
+              <h3>PDF 页面渲染失败</h3>
+              <p className="error-text">{pdf.error}</p>
+              <div className="pdf-error-actions">
+                <button type="button" className="primary-button small" onClick={onRetryPdf}>
+                  重试
+                </button>
+                {cacheAvailable && (
+                  <button
+                    type="button"
+                    className="mini-button"
+                    onClick={() => onPdfViewChange("text")}
+                  >
+                    查看缓存文本
+                  </button>
+                )}
+              </div>
+            </div>
+          ) : pdf.url ? (
+            <figure className="pdf-figure">
+              <img
+                src={pdf.url}
+                alt={`${selectedFile.filename} 第 ${pdf.page ?? pdfPage} 页`}
+                className="pdf-page-image"
+              />
+              <figcaption>第 {pdf.page ?? pdfPage} 页</figcaption>
+            </figure>
+          ) : null}
+        </div>
+      ) : (
+        <div className="pane-body preview-body" ref={contentRef}>
+          {preview.status === "loading" || preview.status === "idle" ? (
+            <div className="preview-loading" role="status">
+              <span className="spinner" aria-hidden="true" />
+              正在读取本地缓存文本…
+            </div>
+          ) : preview.status === "error" ? (
+            <div className="pane-empty" role="alert">
+              <h3>预览加载失败</h3>
+              <p className="error-text">{preview.error}</p>
+              <button type="button" className="primary-button small" onClick={onRetryPreview}>
+                重试
+              </button>
+            </div>
+          ) : previewData?.text ? (
+            <>
+              {activeHit?.crosses_chunk_end && (
+                <p className="cross-note">
+                  命中跨越分块边界，仅高亮当前分块中可见的部分。
+                </p>
+              )}
+              {!activeMapped &&
+                activeHit &&
+                activeHit.kind !== "filename" &&
+                activeHit.chunk_id > 0 && (
+                  <p className="cross-note warn">当前预览分块没有可高亮的可见范围。</p>
+                )}
+              {previewData.locator?.kind === "text" ? (
+                <LinePreview
+                  text={previewData.text}
+                  startLine={previewData.locator.start_line}
+                  endLine={previewData.locator.end_line}
+                  ranges={ranges}
+                />
+              ) : (
+                <TextSheet
+                  text={previewData.text}
+                  locator={previewData.locator}
+                  ranges={ranges}
+                  origin={previewData.origin}
+                />
+              )}
+            </>
+          ) : (
+            <div className="pane-empty">
+              <p>缓存文本为空。</p>
+            </div>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}
+
+function buildPreviewRanges(
+  file: FileResult,
+  text: string,
+  chunkId: number | null,
+  selectedHitKey: string | null,
+): CharRange[] {
+  if (!text || chunkId === null) return [];
+  const ranges: CharRange[] = [];
+  for (const hit of file.hits) {
+    if (hit.kind === "filename" || hit.chunk_id !== chunkId) continue;
+    const range = charRangeForBytes(text, hit.start, hit.end);
+    if (!range) continue;
+    ranges.push({
+      ...range,
+      active: selectedHitKey === hitKey(file.file_id, hit),
+    });
+  }
+  return ranges;
+}
+
+interface LinePreviewProps {
+  text: string;
+  startLine: number;
+  endLine: number;
+  ranges: CharRange[];
+}
+
+function LinePreview({ text, startLine, endLine, ranges }: LinePreviewProps) {
+  const lines = splitPreviewLines(text);
+  return (
+    <div className="code-viewer" role="document" aria-label={`第 ${startLine} 至 ${endLine} 行文本预览`}>
+      <div className="code-caption">
+        <span>
+          第 {startLine}–{endLine} 行
+        </span>
+      </div>
+      <div className="code-lines">
+        {lines.map((line, index) => {
+          const lineNumber = startLine + index;
+          const lineEnd = line.start + line.text.length;
+          const lineRanges = rangesForLine(ranges, line.start, lineEnd);
+          const activeLine = lineHasActiveRange(ranges, line.start, lineEnd);
+          const hasHit = lineRanges.length > 0;
+          return (
+            <div
+              key={`${lineNumber}-${line.start}`}
+              className={`code-line ${hasHit ? "hit-line" : ""} ${activeLine ? "active-line" : ""}`}
+            >
+              <span className="line-number" aria-hidden="true">
+                {lineNumber}
+              </span>
+              <span className="line-text">
+                <HighlightedText text={line.text} ranges={lineRanges} />
+                {line.text.length === 0 ? " " : null}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+interface TextSheetProps {
+  text: string;
+  locator: SourceLocator | null;
+  ranges: CharRange[];
+  origin: string;
+}
+
+function TextSheet({ text, locator, ranges, origin }: TextSheetProps) {
+  const locatorLabel = locatorSummary(locator);
+  return (
+    <div className="text-sheet" role="document" aria-label={`${locatorLabel}文本预览`}>
+      <div className="sheet-meta">
+        <span>{locatorLabel}</span>
+        <span>{originLabel(origin)}</span>
+      </div>
+      <div className="plain-text">
+        <HighlightedText text={text} ranges={ranges} />
+      </div>
+    </div>
+  );
+}

@@ -1,0 +1,33 @@
+[package]
+name = "indexfox-app"
+version = "0.1.0"
+description = "IndexFox · 索引狐 desktop search"
+edition = "2021"
+rust-version = "1.77"
+
+[lib]
+name = "indexfox_app_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = ["tray-icon"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+indexfox-core = { path = "../../crates/indexfox-core" }
+indexfox-source = { path = "../../crates/indexfox-source" }
+indexfox-index = { path = "../../crates/indexfox-index" }
+indexfox-query = { path = "../../crates/indexfox-query" }
+indexfox-extract = { path = "../../crates/indexfox-extract", features = ["pdfium"] }
+indexfox-cli = { path = "../../crates/indexfox-cli", default-features = false }
+tempfile = "3"
+notify = "8.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Graphics_Gdi"] }
+
+[features]
+default = []
+custom-protocol = ["tauri/custom-protocol"]
