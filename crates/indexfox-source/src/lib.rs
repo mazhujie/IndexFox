@@ -1157,14 +1157,17 @@ mod tests {
     #[cfg(unix)]
     #[test]
     fn replaced_root_is_detected_by_identity() {
-        let dir = temp_dir("replace");
+        let temp = temp_dir("replace");
+        let dir = temp.join("root");
+        fs::create_dir(&dir).unwrap();
         let metadata = fs::metadata(&dir).unwrap();
         let identity = root_identity(&metadata);
         assert!(identity.is_some());
-        fs::remove_dir_all(&dir).unwrap();
-        fs::create_dir_all(&dir).unwrap();
+        // Keep the old directory alive so its inode cannot be reused.
+        fs::rename(&dir, temp.join("old-root")).unwrap();
+        fs::create_dir(&dir).unwrap();
         assert!(root_change_issue(&dir, identity).is_some());
-        let _ = fs::remove_dir_all(&dir);
+        let _ = fs::remove_dir_all(&temp);
     }
 
     #[cfg(unix)]
