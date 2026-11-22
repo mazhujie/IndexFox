@@ -106,8 +106,8 @@ else
 fi
 
 # --- Build ----------------------------------------------------------------
-cargo build --release --target "${TARGET}" -p indexfox-cli
-cargo build --release --target "${TARGET}" \
+cargo build --locked --release --target "${TARGET}" -p indexfox-cli
+cargo build --locked --release --target "${TARGET}" \
   --manifest-path app/src-tauri/Cargo.toml --features custom-protocol
 
 APP_DIR="app/src-tauri/target/${TARGET}/release"

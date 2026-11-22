@@ -3,7 +3,7 @@
 > **Windows x64 本地全文检索器（解压即用便携版）**  
 > 对指定目录中的 `TXT`、`PDF`、`MD`、`DOCX` 及常见代码/配置文本进行纯本地内容检索；支持精确匹配、子串匹配、编辑距离拼写容错、按页自动 OCR 兜底、自动/轮询/手动增量索引、系统字体自定义与右侧文档高亮预览。
 
-[Windows x64 便携测试包](https://github.com/mazhujie/IndexFox/releases/tag/v0.1.0-m4)
+[Windows x64 便携包下载](https://github.com/mazhujie/IndexFox/releases)
 
 ---
 
@@ -110,7 +110,9 @@ cargo run -p indexfox-cli -- extract fixtures/pdf/sample.pdf
 cargo run -p indexfox-cli -- pdf-render fixtures/pdf/sample.pdf --page 2 --out /tmp/page2.png
 ```
 
-Windows 便携发布包（交叉编译，需 MinGW + Rust GNU target）：
+推送到 `main` 或向 `main` 提交 PR 时，GitHub Actions 会运行 Rust 测试并构建前端。推送 `v` 开头的版本标签时，通过检查后会自动打包并发布 Windows x64 ZIP 和 SHA256 校验文件。带 `-` 后缀的标签会发布为预发布版。
+
+在本地构建 Windows 便携发布包（交叉编译，需 MinGW + Rust GNU target）：
 
 ```bash
 # 静态 Tesseract 5.5.4：Leptonica/libpng/zlib 与 GCC 运行库全部静态链接。
