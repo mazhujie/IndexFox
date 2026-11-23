@@ -1,11 +1,12 @@
 use std::path::{Path, PathBuf};
-use std::sync::{Mutex, MutexGuard};
+use std::sync::{Mutex, MutexGuard, TryLockError};
+use std::time::Duration;
 
 use indexfox_core::{normalize_search_text, ExtractedDocument, Origin, Section, SourceLocator};
 use pdfium_render::prelude::*;
 
 use crate::ocr::{
-    classify_page_text, file_fingerprint, ocr_batch, ocr_page_cache_key, OcrExtraction,
+    classify_page_text, file_fingerprint, ocr_batch, ocr_page_cache_key, OcrError, OcrExtraction,
     OcrPageFailure, OcrSettings, PageOcrCache, PageOcrReport, TextQuality,
 };
 use crate::text::chunk_spans;
@@ -45,6 +46,25 @@ impl PdfEngine {
         let lifecycle = PDFIUM_LIFECYCLE
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner);
+        Self::bind_with_lifecycle(library, lifecycle)
+    }
+
+    pub(crate) fn bind_controlled(cancelled: &dyn Fn() -> bool) -> Result<Self> {
+        let lifecycle = loop {
+            crate::check_cancelled(cancelled)?;
+            match PDFIUM_LIFECYCLE.try_lock() {
+                Ok(lifecycle) => break lifecycle,
+                Err(TryLockError::Poisoned(error)) => break error.into_inner(),
+                Err(TryLockError::WouldBlock) => std::thread::sleep(Duration::from_millis(25)),
+            }
+        };
+        Self::bind_with_lifecycle(None, lifecycle)
+    }
+
+    fn bind_with_lifecycle(
+        library: Option<&Path>,
+        lifecycle: MutexGuard<'static, ()>,
+    ) -> Result<Self> {
         let candidate = library
             .map(Path::to_path_buf)
             .or_else(|| std::env::var_os("PDFIUM_LIB_PATH").map(PathBuf::from));
@@ -71,7 +91,7 @@ impl PdfEngine {
         path: &Path,
         options: ChunkOptions,
     ) -> Result<ExtractedDocument> {
-        self.extract_inner(path, options, None, None)
+        self.extract_document_controlled(path, options, None, None, &|| false)
             .map(|extraction| extraction.document)
     }
 
@@ -85,7 +105,7 @@ impl PdfEngine {
         ocr: &crate::ocr::OcrOptions,
     ) -> Result<ExtractedDocument> {
         let settings = OcrSettings::from_options(ocr);
-        self.extract_inner(path, options, Some(&settings), None)
+        self.extract_document_controlled(path, options, Some(&settings), None, &|| false)
             .map(|extraction| extraction.document)
     }
 
@@ -96,7 +116,7 @@ impl PdfEngine {
         path: &Path,
         options: ChunkOptions,
     ) -> Result<OcrExtraction> {
-        self.extract_inner(path, options, None, None)
+        self.extract_document_controlled(path, options, None, None, &|| false)
     }
 
     /// Cache/failure-aware OCR entry point. Returns one report per page plus
@@ -108,16 +128,18 @@ impl PdfEngine {
         ocr: &OcrSettings,
         cache: Option<&dyn PageOcrCache>,
     ) -> Result<OcrExtraction> {
-        self.extract_inner(path, options, Some(ocr), cache)
+        self.extract_document_controlled(path, options, Some(ocr), cache, &|| false)
     }
 
-    fn extract_inner(
+    pub(crate) fn extract_document_controlled(
         &self,
         path: &Path,
         options: ChunkOptions,
         ocr: Option<&OcrSettings>,
         cache: Option<&dyn PageOcrCache>,
+        cancelled: &(dyn Fn() -> bool + Sync),
     ) -> Result<OcrExtraction> {
+        crate::check_cancelled(cancelled)?;
         if let Some(settings) = ocr {
             settings
                 .engine
@@ -136,6 +158,7 @@ impl PdfEngine {
         let mut jobs: Vec<PendingJob> = Vec::new();
 
         for (index, page) in pages.iter().enumerate() {
+            crate::check_cancelled(cancelled)?;
             let page_number = index as u16 + 1;
             let native = page
                 .text()
@@ -229,16 +252,31 @@ impl PdfEngine {
                 ),
             }
             if jobs.len() >= concurrency {
-                flush_jobs(&mut jobs, settings, cache, &mut states, &mut failing_pages);
+                flush_jobs(
+                    &mut jobs,
+                    settings,
+                    cache,
+                    &mut states,
+                    &mut failing_pages,
+                    cancelled,
+                )?;
             }
         }
         if let Some(settings) = ocr {
-            flush_jobs(&mut jobs, settings, cache, &mut states, &mut failing_pages);
+            flush_jobs(
+                &mut jobs,
+                settings,
+                cache,
+                &mut states,
+                &mut failing_pages,
+                cancelled,
+            )?;
         }
 
         let mut sections = Vec::new();
         let mut used_ocr = false;
         for state in &states {
+            crate::check_cancelled(cancelled)?;
             let Some(text) = &state.text else {
                 continue;
             };
@@ -407,19 +445,22 @@ fn flush_jobs(
     cache: Option<&dyn PageOcrCache>,
     states: &mut [PageState],
     failures: &mut Vec<OcrPageFailure>,
-) {
+    cancelled: &(dyn Fn() -> bool + Sync),
+) -> Result<()> {
     if jobs.is_empty() {
-        return;
+        return Ok(());
     }
     let batch: Vec<(u32, PathBuf)> = jobs
         .iter()
         .map(|job| (job.page, job.image.to_path_buf()))
         .collect();
-    let results = ocr_batch(&batch, settings);
+    let results = ocr_batch(&batch, settings, cancelled);
+    crate::check_cancelled(cancelled)?;
     for (job, (page, result)) in jobs.drain(..).zip(results) {
         debug_assert_eq!(job.page, page);
         let state = &mut states[job.state_index];
         match result {
+            Err(OcrError::Cancelled) => return Err(ExtractError::Cancelled),
             Ok(text) => {
                 if let Some(cache) = cache {
                     cache.put(&job.cache_key, &text);
@@ -436,6 +477,7 @@ fn flush_jobs(
             }
         }
     }
+    Ok(())
 }
 
 fn retain_ocr_text(state: &mut PageState, text: String) {

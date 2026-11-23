@@ -113,7 +113,9 @@ export default function App() {
   const [sourceError, setSourceError] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [sourcePath, setSourcePath] = useState("");
-  const [sourceBusy, setSourceBusy] = useState(false);
+  const [addingSource, setAddingSource] = useState(false);
+  const [removingSourceId, setRemovingSourceId] = useState<number | null>(null);
+  const sourceBusy = addingSource || removingSourceId !== null;
   const [indexError, setIndexError] = useState<string | null>(null);
   const [runtime, setRuntime] = useState<IndexRuntime | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -420,7 +422,7 @@ export default function App() {
 
   async function addSource(manualPath?: string) {
     if (sourceBusy) return;
-    setSourceBusy(true);
+    setAddingSource(true);
     setIndexError(null);
     try {
       const path = manualPath ?? (await api.pickIndexFolder());
@@ -432,7 +434,7 @@ export default function App() {
     } catch (error) {
       setIndexError(`目录索引失败：${errorMessage(error)}`);
     } finally {
-      setSourceBusy(false);
+      setAddingSource(false);
     }
   }
 
@@ -445,7 +447,7 @@ export default function App() {
     ) {
       return;
     }
-    setSourceBusy(true);
+    setRemovingSourceId(source.id);
     setIndexError(null);
     try {
       await api.removeSource(source.id);
@@ -464,7 +466,7 @@ export default function App() {
     } catch (error) {
       setIndexError(`移除目录失败：${errorMessage(error)}`);
     } finally {
-      setSourceBusy(false);
+      setRemovingSourceId(null);
     }
   }
 
@@ -760,6 +762,7 @@ export default function App() {
           onPickFolder={() => void addSource()}
           onRemoveSource={(source) => void handleRemoveSource(source)}
           busy={sourceBusy}
+          removingSourceId={removingSourceId}
           indexError={indexError}
           runtime={runtime}
           onReload={() => void loadSources()}

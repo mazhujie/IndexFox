@@ -6,8 +6,8 @@ use std::time::{Instant, SystemTime, UNIX_EPOCH};
 use anyhow::{bail, Context, Result};
 use indexfox_core::{FileState, SourceKind, SourceScanConfig};
 use indexfox_extract::{
-    extract_path_with_ocr_settings, ocr_page_cache_key, ChunkOptions, OcrExtraction, OcrOptions,
-    OcrSettings, PageOcrCache,
+    extract_path_controlled, ocr_page_cache_key, ChunkOptions, ExtractError, OcrExtraction,
+    OcrOptions, OcrSettings, PageOcrCache,
 };
 use indexfox_index::{IndexDb, IndexError, NewFile, SourceRecord};
 use indexfox_source::{
@@ -50,6 +50,23 @@ pub struct IndexReport {
     pub elapsed_ms: u64,
 }
 
+#[derive(Clone, Copy)]
+struct IndexControl<'a> {
+    checkpoint: &'a dyn Fn() -> bool,
+    cancelled: &'a (dyn Fn() -> bool + Sync),
+}
+
+impl IndexControl<'_> {
+    const UNCONTROLLED: Self = Self {
+        checkpoint: &|| false,
+        cancelled: &|| false,
+    };
+
+    fn should_stop(self) -> bool {
+        (self.cancelled)() || (self.checkpoint)()
+    }
+}
+
 pub fn index_directory(
     db: &mut IndexDb,
     root: &Path,
@@ -63,7 +80,14 @@ pub fn index_directory(
     let source = db
         .source_by_id(source_id)?
         .ok_or(IndexError::SourceNotFound(source_id))?;
-    run_source(db, &source, options, &scan_options, &|| false, &|_| {})
+    run_source(
+        db,
+        &source,
+        options,
+        &scan_options,
+        IndexControl::UNCONTROLLED,
+        &|_| {},
+    )
 }
 
 pub fn register_source(db: &IndexDb, root: &Path) -> Result<i64> {
@@ -106,6 +130,19 @@ pub fn index_registered_source(
     should_stop: &dyn Fn() -> bool,
     progress: &dyn Fn(&IndexReport),
 ) -> Result<IndexReport> {
+    index_registered_source_controlled(db, source_id, force, should_stop, &|| false, progress)
+}
+
+/// The nonblocking cancellation signal also reaches file extraction and OCR.
+/// The scan checkpoint may block when the index scheduler is paused.
+pub fn index_registered_source_controlled(
+    db: &mut IndexDb,
+    source_id: i64,
+    force: bool,
+    checkpoint: &dyn Fn() -> bool,
+    cancelled: &(dyn Fn() -> bool + Sync),
+    progress: &dyn Fn(&IndexReport),
+) -> Result<IndexReport> {
     let source = db
         .source_by_id(source_id)?
         .ok_or(IndexError::SourceNotFound(source_id))?;
@@ -127,7 +164,11 @@ pub fn index_registered_source(
         excluded_dirs: config.excluded_dirs,
         exclude_globs: config.exclude_globs,
     };
-    run_source(db, &source, &options, &scan_options, should_stop, progress)
+    let control = IndexControl {
+        checkpoint,
+        cancelled,
+    };
+    run_source(db, &source, &options, &scan_options, control, progress)
 }
 
 fn run_source(
@@ -135,10 +176,10 @@ fn run_source(
     source: &SourceRecord,
     options: &IndexOptions,
     scan_options: &ScanOptions,
-    should_stop: &dyn Fn() -> bool,
+    control: IndexControl<'_>,
     progress: &dyn Fn(&IndexReport),
 ) -> Result<IndexReport> {
-    check_stop(should_stop)?;
+    check_stop(control)?;
     let generation = db.begin_source_scan(source.id)?;
     let result = run_generation(
         db,
@@ -146,7 +187,7 @@ fn run_source(
         generation,
         options,
         scan_options,
-        should_stop,
+        control,
         progress,
     );
     if let Err(error) = &result {
@@ -171,7 +212,7 @@ fn run_generation(
     generation: i64,
     options: &IndexOptions,
     scan_options: &ScanOptions,
-    should_stop: &dyn Fn() -> bool,
+    control: IndexControl<'_>,
     progress: &dyn Fn(&IndexReport),
 ) -> Result<IndexReport> {
     let started = Instant::now();
@@ -179,7 +220,7 @@ fn run_generation(
     let root = Path::new(&source.root_path);
     let root_before = readable_root(root)?;
     progress(&IndexReport::default());
-    let outcome = scan_root_controlled(root, scan_options, should_stop)?;
+    let outcome = scan_root_controlled(root, scan_options, &|| control.should_stop())?;
 
     let mut report = IndexReport {
         scanned: outcome.files.len(),
@@ -195,12 +236,12 @@ fn run_generation(
     let mut seen = HashSet::with_capacity(outcome.files.len());
 
     for file in &outcome.files {
-        check_stop(should_stop)?;
+        check_stop(control)?;
         if !seen.insert(file.path_key.clone()) {
             report.unchanged += 1;
             continue;
         }
-        match index_one(db, source_id, file, options, should_stop)? {
+        match index_one(db, source_id, file, options, control)? {
             FileOutcome::Indexed => report.indexed += 1,
             FileOutcome::Unchanged => report.unchanged += 1,
             FileOutcome::SkippedSize => report.skipped_size += 1,
@@ -212,7 +253,7 @@ fn run_generation(
         progress(&report);
     }
 
-    check_stop(should_stop)?;
+    check_stop(control)?;
     let root_after = readable_root(root)?;
     if root_before != root_after {
         report.incomplete_scan = true;
@@ -220,7 +261,7 @@ fn run_generation(
             .issues
             .push(format!("扫描期间目录发生变化：{}", root.display()));
     }
-    check_stop(should_stop)?;
+    check_stop(control)?;
     if report.incomplete_scan {
         db.abort_source_scan(source_id, generation, "failed")?;
     } else {
@@ -243,8 +284,8 @@ fn readable_root(root: &Path) -> Result<(Option<SystemTime>, Option<SystemTime>)
     Ok((metadata.created().ok(), metadata.modified().ok()))
 }
 
-fn check_stop(should_stop: &dyn Fn() -> bool) -> Result<(), ScanError> {
-    if should_stop() {
+fn check_stop(control: IndexControl<'_>) -> Result<(), ScanError> {
+    if control.should_stop() {
         return Err(ScanError::Cancelled);
     }
     Ok(())
@@ -271,7 +312,7 @@ pub fn index_file(
         scanned: 1,
         ..IndexReport::default()
     };
-    match index_one(db, source_id, &file, options, &|| false)? {
+    match index_one(db, source_id, &file, options, IndexControl::UNCONTROLLED)? {
         FileOutcome::Indexed => report.indexed = 1,
         FileOutcome::Unchanged => report.unchanged = 1,
         FileOutcome::SkippedSize => report.skipped_size = 1,
@@ -323,7 +364,7 @@ fn index_one(
     source_id: i64,
     file: &ScannedFile,
     options: &IndexOptions,
-    should_stop: &dyn Fn() -> bool,
+    control: IndexControl<'_>,
 ) -> Result<FileOutcome> {
     let existing = db.find_file(source_id, &file.path_key)?;
     let is_pdf = file.ext.eq_ignore_ascii_case("pdf");
@@ -377,9 +418,9 @@ fn index_one(
             (Some(record), true) => db.cached_ocr_pages(record.id)?,
             _ => BTreeMap::new(),
         };
-        extract_stable(&file.path, options, ocr, &cached)
+        extract_stable(&file.path, options, ocr, &cached, control.cancelled)
     };
-    check_stop(should_stop)?;
+    check_stop(control)?;
 
     match extracted {
         Ok(extracted) => {
@@ -449,8 +490,12 @@ fn extract_stable(
     options: &IndexOptions,
     ocr: Option<&OcrSettings>,
     cached: &BTreeMap<String, String>,
+    cancelled: &(dyn Fn() -> bool + Sync),
 ) -> std::result::Result<StableExtraction, String> {
     for _ in 0..2 {
+        if cancelled() {
+            return Err(ExtractError::Cancelled.to_string());
+        }
         let before = metadata(path).map_err(|error| error.to_string())?;
         if before.0 > options.max_file_size_bytes {
             return Ok(StableExtraction {
@@ -463,7 +508,10 @@ fn extract_stable(
             available: cached,
             used: RefCell::new(BTreeMap::new()),
         };
-        let result = extract_path_with_ocr_settings(path, options.chunk, ocr, Some(&cache));
+        let result = extract_path_controlled(path, options.chunk, ocr, Some(&cache), cancelled);
+        if cancelled() {
+            return Err(ExtractError::Cancelled.to_string());
+        }
         let after = metadata(path).map_err(|error| error.to_string())?;
         if before.0 == after.0 && before.1 == after.1 {
             return result

@@ -42,9 +42,18 @@ pub enum ExtractError {
     Ocr(String),
     #[error("image: {0}")]
     Image(String),
+    #[error("extraction cancelled")]
+    Cancelled,
 }
 
 pub type Result<T, E = ExtractError> = std::result::Result<T, E>;
+
+fn check_cancelled(cancelled: &dyn Fn() -> bool) -> Result<()> {
+    if cancelled() {
+        return Err(ExtractError::Cancelled);
+    }
+    Ok(())
+}
 
 #[derive(Debug, Clone, Copy)]
 pub struct ChunkOptions {
@@ -87,6 +96,19 @@ pub fn extract_path_with_ocr_settings(
     ocr: Option<&OcrSettings>,
     cache: Option<&dyn PageOcrCache>,
 ) -> Result<OcrExtraction> {
+    extract_path_controlled(path, options, ocr, cache, &|| false)
+}
+
+/// Extract a file while checking for cancellation, including between PDF pages
+/// and while OCR subprocesses are running. The callback must not block.
+pub fn extract_path_controlled(
+    path: &std::path::Path,
+    options: ChunkOptions,
+    ocr: Option<&OcrSettings>,
+    cache: Option<&dyn PageOcrCache>,
+    cancelled: &(dyn Fn() -> bool + Sync),
+) -> Result<OcrExtraction> {
+    check_cancelled(cancelled)?;
     let _ = cache;
     let declared = path
         .extension()
@@ -107,11 +129,8 @@ pub fn extract_path_with_ocr_settings(
         "pdf" => {
             #[cfg(feature = "pdfium")]
             {
-                let engine = pdf::PdfEngine::bind(None)?;
-                match ocr {
-                    Some(ocr) => engine.extract_document_ocr(path, options, ocr, cache),
-                    None => engine.extract_document_report(path, options),
-                }
+                let engine = pdf::PdfEngine::bind_controlled(cancelled)?;
+                engine.extract_document_controlled(path, options, ocr, cache, cancelled)
             }
             #[cfg(not(feature = "pdfium"))]
             {
@@ -121,6 +140,7 @@ pub fn extract_path_with_ocr_settings(
         }
         "docx" => {
             let bytes = std::fs::read(path)?;
+            check_cancelled(cancelled)?;
             docx::extract_docx(&bytes, options).map(OcrExtraction::from_document)
         }
         "txt" | "md" | "markdown" | "c" | "h" | "cc" | "cpp" | "cxx" | "hpp" | "hh" | "rs"
@@ -132,6 +152,7 @@ pub fn extract_path_with_ocr_settings(
         | "mk" | "makefile" | "dockerfile" | "gitignore" | "editorconfig" | "log" | "csv"
         | "tsv" => {
             let bytes = std::fs::read(path)?;
+            check_cancelled(cancelled)?;
             Ok(OcrExtraction::from_document(text::extract_text_bytes(
                 bytes, options,
             )))

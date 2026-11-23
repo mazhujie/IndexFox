@@ -48,7 +48,7 @@ impl Drop for OcrSlotGuard {
     }
 }
 
-fn acquire_ocr_slot(limit: usize) -> OcrSlotGuard {
+fn acquire_ocr_slot(limit: usize, cancelled: &dyn Fn() -> bool) -> Result<OcrSlotGuard, OcrError> {
     let gate = &*OCR_SLOTS;
     let mut state = gate
         .state
@@ -56,13 +56,20 @@ fn acquire_ocr_slot(limit: usize) -> OcrSlotGuard {
         .unwrap_or_else(std::sync::PoisonError::into_inner);
     state.limit = limit.clamp(1, MAX_OCR_CONCURRENCY);
     while state.active >= state.limit {
+        if cancelled() {
+            return Err(OcrError::Cancelled);
+        }
         state = gate
             .released
-            .wait(state)
-            .unwrap_or_else(std::sync::PoisonError::into_inner);
+            .wait_timeout(state, Duration::from_millis(25))
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+            .0;
+    }
+    if cancelled() {
+        return Err(OcrError::Cancelled);
     }
     state.active += 1;
-    OcrSlotGuard { gate }
+    Ok(OcrSlotGuard { gate })
 }
 /// Default per-page raster allocation cap (width × height pixels).
 pub const DEFAULT_MAX_RENDER_PIXELS: u64 = 40_000_000;
@@ -253,6 +260,8 @@ pub enum OcrError {
     Failed(String),
     #[error("failed to read OCR output: {0}")]
     Output(String),
+    #[error("OCR cancelled")]
+    Cancelled,
 }
 
 /// Native PDF text assessment. Doc comment included in `pdf.rs` policy.
@@ -333,12 +342,21 @@ pub fn ocr_image_with_engine(
     image: &Path,
     settings: &OcrSettings,
 ) -> Result<String, OcrError> {
+    ocr_image_controlled(engine, image, settings, &|| false)
+}
+
+fn ocr_image_controlled(
+    engine: OcrEngineKind,
+    image: &Path,
+    settings: &OcrSettings,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<String, OcrError> {
     match engine {
         OcrEngineKind::Tesseract => {
             // Global slot, not just per-batch: several index workers may OCR
             // different PDFs at once.
-            let _slot = acquire_ocr_slot(settings.concurrency());
-            ocr_tesseract(image, settings)
+            let _slot = acquire_ocr_slot(settings.concurrency(), cancelled)?;
+            ocr_tesseract(image, settings, cancelled)
         }
         OcrEngineKind::PaddleOcr => Err(OcrError::EngineUnavailable(
             "PaddleOCR adapter is reserved and not available in this build".to_string(),
@@ -346,7 +364,11 @@ pub fn ocr_image_with_engine(
     }
 }
 
-fn ocr_tesseract(image: &Path, settings: &OcrSettings) -> Result<String, OcrError> {
+fn ocr_tesseract(
+    image: &Path,
+    settings: &OcrSettings,
+    cancelled: &dyn Fn() -> bool,
+) -> Result<String, OcrError> {
     let executable = settings.resolved_executable();
     let workdir = tempfile::Builder::new()
         .prefix("indexfox-ocr-")
@@ -375,6 +397,9 @@ fn ocr_tesseract(image: &Path, settings: &OcrSettings) -> Result<String, OcrErro
         const CREATE_NO_WINDOW: u32 = 0x0800_0000;
         command.creation_flags(CREATE_NO_WINDOW);
     }
+    if cancelled() {
+        return Err(OcrError::Cancelled);
+    }
     let mut child = command.spawn().map_err(|error| {
         if error.kind() == std::io::ErrorKind::NotFound {
             OcrError::NotAvailable(executable.display().to_string())
@@ -385,6 +410,11 @@ fn ocr_tesseract(image: &Path, settings: &OcrSettings) -> Result<String, OcrErro
 
     let started = Instant::now();
     loop {
+        if cancelled() {
+            let _ = child.kill();
+            let _ = child.wait();
+            return Err(OcrError::Cancelled);
+        }
         match child.try_wait() {
             Ok(Some(status)) => {
                 if !status.success() {
@@ -419,6 +449,7 @@ fn ocr_tesseract(image: &Path, settings: &OcrSettings) -> Result<String, OcrErro
 pub(crate) fn ocr_batch(
     jobs: &[(u32, PathBuf)],
     settings: &OcrSettings,
+    cancelled: &(dyn Fn() -> bool + Sync),
 ) -> Vec<(u32, Result<String, OcrError>)> {
     let limit = settings.concurrency();
     let mut results = Vec::with_capacity(jobs.len());
@@ -430,8 +461,9 @@ pub(crate) fn ocr_batch(
                     let page = *page;
                     let image = image.clone();
                     let settings = settings.clone();
-                    let handle = scope
-                        .spawn(move || ocr_image_with_engine(settings.engine, &image, &settings));
+                    let handle = scope.spawn(move || {
+                        ocr_image_controlled(settings.engine, &image, &settings, cancelled)
+                    });
                     (page, handle)
                 })
                 .collect();
@@ -706,6 +738,41 @@ mod tests {
     }
 
     #[test]
+    fn cancellation_stops_running_ocr_before_its_timeout() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+
+        let _guard = SCRIPT_EXEC_LOCK
+            .lock()
+            .unwrap_or_else(|error| error.into_inner());
+        let (dir, executable) = script("printf '%s' \"$$\" > \"$1\"; exec sleep 10");
+        let started_marker = dir.path().join("started");
+        let settings = OcrSettings::from_options(&OcrOptions {
+            executable,
+            languages: "eng".into(),
+            dpi: 250,
+            timeout: Duration::from_secs(10),
+        });
+        let cancelled = AtomicBool::new(false);
+        std::thread::scope(|scope| {
+            let worker = scope.spawn(|| {
+                ocr_image_controlled(settings.engine, &started_marker, &settings, &|| {
+                    cancelled.load(Ordering::SeqCst)
+                })
+            });
+            let deadline = Instant::now() + Duration::from_secs(2);
+            while !started_marker.exists() && Instant::now() < deadline {
+                std::thread::sleep(Duration::from_millis(10));
+            }
+            let started = Instant::now();
+            cancelled.store(true, Ordering::SeqCst);
+            let result = worker.join().unwrap();
+            assert!(started_marker.exists());
+            assert!(matches!(result, Err(OcrError::Cancelled)));
+            assert!(started.elapsed() < Duration::from_secs(2));
+        });
+    }
+
+    #[test]
     fn paddle_adapter_is_explicitly_unavailable() {
         let settings = OcrSettings::default();
         assert!(settings.engine.availability().is_ok());
@@ -782,7 +849,7 @@ mod tests {
             .map(|page| (page, dir.path().join(format!("{page}.png"))))
             .collect();
         let started = Instant::now();
-        let results = ocr_batch(&jobs, &settings);
+        let results = ocr_batch(&jobs, &settings, &|| false);
         assert_eq!(
             results.iter().map(|(page, _)| *page).collect::<Vec<_>>(),
             vec![1, 2, 3, 4, 5]

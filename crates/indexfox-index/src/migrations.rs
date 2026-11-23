@@ -3,7 +3,7 @@ use rusqlite::{Connection, TransactionBehavior};
 use crate::dictionary;
 use crate::{IndexError, Result};
 
-pub const SCHEMA_VERSION: i64 = 4;
+pub const SCHEMA_VERSION: i64 = 5;
 
 const V1: &str = r#"
 CREATE TABLE sources (
@@ -185,6 +185,13 @@ pub fn migrate(conn: &mut Connection) -> Result<()> {
         version = 4;
         tx.pragma_update(None, "user_version", version)?;
     }
+    if version < 5 {
+        // The primary key starts with gram. Cascading chunk deletes need
+        // an index starting with chunk_id to avoid scanning all short grams.
+        tx.execute_batch("CREATE INDEX idx_short_grams_chunk ON short_grams(chunk_id);")?;
+        version = 5;
+        tx.pragma_update(None, "user_version", version)?;
+    }
     debug_assert_eq!(version, SCHEMA_VERSION);
     tx.commit()?;
     Ok(())
@@ -355,5 +362,26 @@ mod tests {
                 .unwrap(),
             2
         );
+    }
+
+    #[test]
+    fn v4_upgrade_indexes_short_grams_by_chunk() {
+        let mut conn = Connection::open_in_memory().unwrap();
+        for schema in [V1, V2, V3, crate::ocr::OCR_SCHEMA] {
+            conn.execute_batch(schema).unwrap();
+        }
+        conn.pragma_update(None, "user_version", 4).unwrap();
+
+        migrate(&mut conn).unwrap();
+        migrate(&mut conn).unwrap();
+
+        let indexed_column: String = conn
+            .query_row(
+                "SELECT name FROM pragma_index_info('idx_short_grams_chunk') WHERE seqno = 0",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(indexed_column, "chunk_id");
     }
 }

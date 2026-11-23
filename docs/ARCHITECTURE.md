@@ -74,7 +74,7 @@ CLI 和桌面调度器复用同一套扫描和写入逻辑。
 
 Migration v1 位于 `crates/indexfox-index/src/migrations.rs`，包含
 `sources/files/chunks/chunks_fts/short_grams/search_history/index_jobs/app_meta`。
-当前 `SCHEMA_VERSION = 4`。所有升级在 `BEGIN IMMEDIATE` 中串行执行；高于支持版本直接拒绝打开，等于当前版本不写库。
+当前 `SCHEMA_VERSION = 5`。所有升级在 `BEGIN IMMEDIATE` 中串行执行；高于支持版本直接拒绝打开，等于当前版本不写库。V5 按 `short_grams.chunk_id` 建立索引，加速删除文本块时的级联清理。
 
 - v2：`sources.scan_generation` 每次扫描开始原子递增，旧 generation 不能再提交；`files.seen_generation` 记录文件最后一次被完整扫描看到的代次，用于对账。不重建表，也不触碰已有 FTS5 external-content 行和 `short_grams`。
 - v3：新增独立 fuzzy 词典 `lexemes`（ASCII 小写、Unicode 标量长度、`word`/`cjk`）、`lexeme_grams`（gram → lexeme）和 `lexeme_occurrences`（lexeme → chunk 字节区间）。词典跨文件共享；chunk 删除/替换级联 occurrence，`lexeme_occurrences_ad` 触发器与 `prune_orphan_lexemes()` 清理无引用的词。迁移在同一事务内用 `chunks.display_text` 回填 v1/v2 已提交的 chunk，已有 FTS/短词行不变。

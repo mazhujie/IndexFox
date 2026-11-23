@@ -15,6 +15,7 @@ interface SourcesPaneProps {
   onPickFolder: () => void;
   onRemoveSource: (source: SourceInfo) => void;
   busy: boolean;
+  removingSourceId: number | null;
   indexError: string | null;
   runtime: IndexRuntime | null;
   onReload: () => void;
@@ -41,10 +42,16 @@ export function SourcesPane({
   onPickFolder,
   onRemoveSource,
   busy,
+  removingSourceId,
   indexError,
   runtime,
   onReload,
 }: SourcesPaneProps) {
+  const removingSource = sources.find((source) => source.id === removingSourceId);
+  const stoppingScan = removingSource?.online_state === "scanning"
+    || runtime?.active.some((job) => job.sourceId === removingSourceId);
+  const removalPhase = stoppingScan ? "正在停止扫描…" : "正在清理索引…";
+
   return (
     <aside className="pane sources-pane" aria-label="已索引目录">
       <div className="pane-header">
@@ -97,7 +104,7 @@ export function SourcesPane({
             />
             <p className="form-hint">将目录加入后台索引队列。</p>
             <button type="submit" className="primary-button small" disabled={busy}>
-              {busy ? "正在添加…" : "添加并索引"}
+              {busy && removingSourceId === null ? "正在添加…" : "添加并索引"}
             </button>
           </form>
         )}
@@ -152,8 +159,10 @@ export function SourcesPane({
                     />
                   </span>
                   <span className="source-meta">
-                    <span>{onlineLabel(source.online_state)}</span>
-                    {runtime?.active.filter((job) => job.sourceId === source.id).map((job) => (
+                    <span role={removingSourceId === source.id ? "status" : undefined}>
+                      {removingSourceId === source.id ? removalPhase : onlineLabel(source.online_state)}
+                    </span>
+                    {removingSourceId !== source.id && runtime?.active.filter((job) => job.sourceId === source.id).map((job) => (
                       <span key={job.jobId}>
                         {job.total > 0 ? `${job.processed} / ${job.total}` : "正在枚举"}
                       </span>
@@ -164,12 +173,13 @@ export function SourcesPane({
                 <button
                   type="button"
                   className="mini-button source-remove"
-                  aria-label={`移除 ${source.root_path}`}
+                  aria-label={`${removingSourceId === source.id ? "正在移除" : "移除"} ${source.root_path}`}
+                  aria-busy={removingSourceId === source.id}
                   title="移除索引来源（原始文件会保留）"
                   disabled={busy}
                   onClick={() => onRemoveSource(source)}
                 >
-                  移除
+                  {removingSourceId === source.id ? "移除中…" : "移除"}
                 </button>
               </div>
             ))}

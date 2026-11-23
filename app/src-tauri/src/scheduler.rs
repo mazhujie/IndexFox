@@ -19,7 +19,7 @@ use std::sync::{Arc, Condvar, Mutex, MutexGuard, PoisonError, RwLock};
 use std::thread::{self, JoinHandle};
 use std::time::{Duration, Instant};
 
-use indexfox_cli::pipeline::{index_registered_source, IndexReport};
+use indexfox_cli::pipeline::{index_registered_source_controlled, IndexReport};
 use indexfox_core::{ResourceMode, SourceKind, SourceScanConfig};
 use indexfox_index::{IndexDb, IndexError, IndexJobRecord, SourceRecord};
 use notify::{Config, Event, EventKind, RecommendedWatcher, RecursiveMode, Watcher};
@@ -480,33 +480,36 @@ impl IndexScheduler {
 
     pub fn remove_source(&self, source_id: i64) -> Result<(), String> {
         let inner = &self.inner;
-        let _gate = lock(&inner.job_gate);
-        for job in lock(&inner.active)
-            .values()
-            .filter(|job| job.source_id == source_id)
-        {
-            job.control.cancel();
-        }
-
-        // shortcut: a blocked network scan may need more time to exit, retry once it stops.
-        let deadline = Instant::now() + Duration::from_secs(5);
         let mut seen = 0;
-        while lock(&inner.active)
-            .values()
-            .any(|job| job.source_id == source_id)
-        {
-            let remaining = deadline.saturating_duration_since(Instant::now());
-            if remaining.is_zero() {
-                return Err("目录的索引任务正在停止，请稍后重试移除。".into());
+        loop {
+            if inner.shutdown.load(Ordering::SeqCst) {
+                return Err("应用正在退出。".into());
             }
-            inner.wait_for_change(&mut seen, Some(remaining));
+            {
+                // Serialize the final active-job check and delete with job claims.
+                // Release the gate while the worker finishes its current operation.
+                let _gate = lock(&inner.job_gate);
+                let mut stopping = false;
+                for job in lock(&inner.active)
+                    .values()
+                    .filter(|job| job.source_id == source_id)
+                {
+                    stopping = true;
+                    if !job.control.cancelled.load(Ordering::SeqCst) {
+                        job.control.cancel();
+                    }
+                }
+                if !stopping {
+                    inner.try_with_database(|db| {
+                        db.delete_source(source_id)
+                            .map_err(|error| error.to_string())
+                    })?;
+                    inner.wake();
+                    return Ok(());
+                }
+            }
+            inner.wait_for_change(&mut seen, None);
         }
-        inner.try_with_database(|db| {
-            db.delete_source(source_id)
-                .map_err(|error| error.to_string())
-        })?;
-        inner.wake();
-        Ok(())
     }
 
     pub fn snapshot(&self) -> RuntimeSnapshot {
@@ -899,11 +902,12 @@ fn claim_and_register(inner: &Arc<Inner>) -> Result<Option<PendingJob>, String> 
 
 fn run_job(inner: &Inner, job: &IndexJobRecord, control: &JobControl, force: bool) -> Outcome {
     let result = inner.with_database(|db| {
-        let pipeline = index_registered_source(
+        let pipeline = index_registered_source_controlled(
             db,
             job.source_id,
             force,
             &|| control.should_stop(),
+            &|| control.cancelled.load(Ordering::SeqCst) || inner.shutdown.load(Ordering::SeqCst),
             &|report: &IndexReport| inner.update_progress(job.id, report),
         );
         if control.cancelled.load(Ordering::SeqCst) {
@@ -959,8 +963,17 @@ fn spawn_worker(inner: Arc<Inner>, sender: Sender<Completion>, pending: PendingJ
     let spawned = thread::Builder::new()
         .name(format!("indexfox-index-{job_id}"))
         .spawn(move || {
-            let outcome = run_job(&worker_inner, &job, &control, force);
+            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+                run_job(&worker_inner, &job, &control, force)
+            }));
             worker_inner.finish_job(job_id);
+            let outcome = match result {
+                Ok(outcome) => outcome,
+                Err(panic) => {
+                    worker_inner.wake();
+                    std::panic::resume_unwind(panic);
+                }
+            };
             let _ = worker_sender.send(Completion {
                 source_id,
                 job_id,
@@ -1221,14 +1234,31 @@ mod tests {
         db.queue_source_scan(source, false).unwrap();
         db.queue_source_scan(other_source, false).unwrap();
         let location = DatabaseLocation::load(path, dir.path().join("location.json"));
-        let scheduler = IndexScheduler::new(Arc::new(RwLock::new(location)));
+        let scheduler = Arc::new(IndexScheduler::new(Arc::new(RwLock::new(location))));
         let pending = claim_and_register(&scheduler.inner).unwrap().unwrap();
         assert_eq!(pending.job.source_id, source);
         scheduler.set_paused(true);
+
+        let (removed_sender, removed_receiver) = mpsc::channel();
+        let removing = Arc::clone(&scheduler);
+        let remove_thread = thread::spawn(move || {
+            removed_sender.send(removing.remove_source(source)).unwrap();
+        });
+        // Hold the claimed job past the old deadline, as a blocking read can.
+        assert!(matches!(
+            removed_receiver.recv_timeout(Duration::from_millis(5250)),
+            Err(mpsc::RecvTimeoutError::Timeout)
+        ));
+        assert!(pending.control.cancelled.load(Ordering::SeqCst));
+        assert!(scheduler.inner.job_gate.try_lock().is_ok());
+
         let (sender, receiver) = mpsc::channel();
         spawn_worker(Arc::clone(&scheduler.inner), sender, pending);
-
-        scheduler.remove_source(source).unwrap();
+        removed_receiver
+            .recv_timeout(Duration::from_secs(2))
+            .unwrap()
+            .unwrap();
+        remove_thread.join().unwrap();
 
         let completion = receiver.recv_timeout(Duration::from_secs(1)).unwrap();
         assert!(matches!(completion.outcome, Outcome::Cancelled));
