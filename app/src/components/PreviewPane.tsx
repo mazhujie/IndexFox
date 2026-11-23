@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from "react";
-import type { FormEvent } from "react";
+import { api, errorMessage } from "../api";
 import type {
   FileResult,
-  PdfPageState,
   PreviewState,
   SearchHit,
   SourceLocator,
@@ -23,19 +22,17 @@ import {
   type CharRange,
 } from "../text";
 import { HighlightedText } from "./HighlightedText";
+import { PdfDocumentPreview } from "./PdfDocumentPreview";
 
 interface PreviewPaneProps {
   selectedFile: FileResult | null;
   activeHit: SearchHit | null;
   selectedHitKey: string | null;
   preview: PreviewState;
-  pdf: PdfPageState;
   pdfView: "page" | "text";
-  pdfPage: number;
+  pdfNavigation: number;
   onPdfViewChange: (view: "page" | "text") => void;
-  onPdfPageChange: (page: number) => void;
   onRetryPreview: () => void;
-  onRetryPdf: () => void;
   onSelectHit: (hit: SearchHit) => void;
 }
 
@@ -44,21 +41,13 @@ export function PreviewPane({
   activeHit,
   selectedHitKey,
   preview,
-  pdf,
   pdfView,
-  pdfPage,
+  pdfNavigation,
   onPdfViewChange,
-  onPdfPageChange,
   onRetryPreview,
-  onRetryPdf,
   onSelectHit,
 }: PreviewPaneProps) {
   const contentRef = useRef<HTMLDivElement>(null);
-  const [pageDraft, setPageDraft] = useState(String(pdfPage));
-
-  useEffect(() => {
-    setPageDraft(String(pdfPage));
-  }, [pdfPage]);
 
   useEffect(() => {
     const container = contentRef.current;
@@ -98,10 +87,7 @@ export function PreviewPane({
   const stateLabel = fileStateLabel(selectedFile.state);
   const previewData = preview.status === "ready" ? preview.data : null;
   const cacheAvailable = Boolean(previewData?.text);
-  const positionLabel =
-    isPdf && pdfView === "page"
-      ? `第 ${pdfPage} 页`
-      : locatorSummary(previewData?.locator ?? activeHit?.locator ?? null);
+  const positionLabel = locatorSummary(activeHit?.locator ?? previewData?.locator ?? null);
   const ranges = buildPreviewRanges(
     selectedFile,
     previewData?.text ?? "",
@@ -109,12 +95,6 @@ export function PreviewPane({
     selectedHitKey,
   );
   const activeMapped = ranges.some((range) => range.active);
-
-  function submitPage(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const next = Number.parseInt(pageDraft, 10);
-    if (Number.isFinite(next) && next >= 1) onPdfPageChange(next);
-  }
 
   function stepHit(delta: number) {
     if (hits.length === 0) return;
@@ -135,6 +115,9 @@ export function PreviewPane({
           </div>
         </div>
         <div className="preview-actions">
+          {navigator.userAgent.includes("Windows") && (
+            <FileActions key={`${selectedFile.file_id}:${selectedFile.path}`} file={selectedFile} />
+          )}
           {isPdf && (
             <div className="segmented" role="group" aria-label="PDF 预览方式">
               <button
@@ -202,60 +185,13 @@ export function PreviewPane({
       </div>
 
       {isPdf && pdfView === "page" ? (
-        <div className="pane-body preview-body pdf-body" ref={contentRef}>
-          <div className="pdf-toolbar">
-            <form className="pdf-page-form" onSubmit={submitPage}>
-              <label htmlFor="pdf-page-number">页码</label>
-              <input
-                id="pdf-page-number"
-                className="text-input page-input mono"
-                inputMode="numeric"
-                value={pageDraft}
-                onChange={(event) => setPageDraft(event.target.value.replace(/[^\d]/g, ""))}
-                aria-label="PDF 页码"
-              />
-              <button type="submit" className="mini-button">
-                跳转
-              </button>
-            </form>
-            <span className="muted">当前渲染第 {pdfPage} 页</span>
-          </div>
-
-          {pdf.status === "loading" || pdf.status === "idle" ? (
-            <div className="pdf-loading" role="status">
-              <span className="spinner" aria-hidden="true" />
-              正在渲染 PDF 第 {pdfPage} 页…
-            </div>
-          ) : pdf.status === "error" ? (
-            <div className="pdf-error" role="alert">
-              <h3>PDF 页面渲染失败</h3>
-              <p className="error-text">{pdf.error}</p>
-              <div className="pdf-error-actions">
-                <button type="button" className="primary-button small" onClick={onRetryPdf}>
-                  重试
-                </button>
-                {cacheAvailable && (
-                  <button
-                    type="button"
-                    className="mini-button"
-                    onClick={() => onPdfViewChange("text")}
-                  >
-                    查看缓存文本
-                  </button>
-                )}
-              </div>
-            </div>
-          ) : pdf.url ? (
-            <figure className="pdf-figure">
-              <img
-                src={pdf.url}
-                alt={`${selectedFile.filename} 第 ${pdf.page ?? pdfPage} 页`}
-                className="pdf-page-image"
-              />
-              <figcaption>第 {pdf.page ?? pdfPage} 页</figcaption>
-            </figure>
-          ) : null}
-        </div>
+        <PdfDocumentPreview
+          key={`${selectedFile.file_id}:${selectedFile.path}:${selectedFile.mtime_ns}:${selectedFile.size_bytes}`}
+          file={selectedFile}
+          activeHit={activeHit}
+          navigation={pdfNavigation}
+          onOpenText={cacheAvailable ? () => onPdfViewChange("text") : undefined}
+        />
       ) : (
         <div className="pane-body preview-body" ref={contentRef}>
           {preview.status === "loading" || preview.status === "idle" ? (
@@ -308,6 +244,35 @@ export function PreviewPane({
         </div>
       )}
     </section>
+  );
+}
+
+function FileActions({ file }: { file: FileResult }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function perform(action: "open" | "reveal") {
+    setBusy(true);
+    setError(null);
+    try {
+      await api.openIndexedFile(file.file_id, file.path, action);
+    } catch (error) {
+      setError(errorMessage(error));
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <div className="preview-file-actions">
+      <button type="button" className="mini-button" disabled={busy} onClick={() => void perform("open")}>
+        打开原文件
+      </button>
+      <button type="button" className="mini-button" disabled={busy} onClick={() => void perform("reveal")}>
+        在资源管理器中显示
+      </button>
+      {error && <p className="error-text" role="alert">{error}</p>}
+    </div>
   );
 }
 

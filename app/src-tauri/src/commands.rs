@@ -3,11 +3,12 @@ use std::sync::atomic::Ordering;
 
 use indexfox_cli::pipeline::register_source;
 use indexfox_core::{ResourceMode, SearchMode, SortKey, SourceLocator, SourceScanConfig};
-use indexfox_index::IndexDb;
+use indexfox_index::{FileRecord, IndexDb};
 use indexfox_query::{search_cancellable, SearchOptions, SearchResponse};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Manager, State, WebviewWindow};
 
+use crate::file_actions::{self, FileAction};
 use crate::scheduler::{Database, RuntimeSnapshot};
 use crate::state::AppState;
 use crate::storage;
@@ -613,88 +614,135 @@ fn file_mtime_ns(metadata: &std::fs::Metadata) -> Option<i64> {
     })
 }
 
+fn indexed_file(db: &IndexDb, file_id: i64) -> Result<FileRecord, String> {
+    db.file_by_id(file_id)
+        .map_err(|error| format!("cannot read file {file_id}: {error}"))?
+        .ok_or_else(|| format!("file id {file_id} not found"))
+}
+
+#[tauri::command]
+pub async fn open_indexed_file(
+    file_id: i64,
+    expected_path: String,
+    action: FileAction,
+    state: State<'_, AppState>,
+) -> Result<(), String> {
+    let path = with_db(state.database.clone(), move |db| {
+        let file = indexed_file(db, file_id)?;
+        if file.display_path != expected_path {
+            return Err("文件索引已更新，请重新搜索后再试。".into());
+        }
+        Ok(PathBuf::from(file.display_path))
+    })
+    .await?;
+    tauri::async_runtime::spawn_blocking(move || {
+        if !path.is_absolute() {
+            return Err("索引中的文件路径无效。".into());
+        }
+        let metadata = std::fs::metadata(&path)
+            .map_err(|error| format!("无法访问原文件。文件可能已移动，或来源暂不可用。{error}"))?;
+        if !metadata.is_file() {
+            return Err("原文件路径当前未指向文件。".into());
+        }
+        file_actions::perform(&path, action)
+    })
+    .await
+    .map_err(|error| error.to_string())?
+}
+
+fn pdf_preview_path(db: &IndexDb, file_id: i64, max_size: u64) -> Result<PathBuf, String> {
+    let file = indexed_file(db, file_id)?;
+    if !file.ext.eq_ignore_ascii_case("pdf") {
+        return Err(format!(
+            "file id {file_id} has extension {:?}, not pdf",
+            file.ext
+        ));
+    }
+    if file.state != "indexed" {
+        return Err(pdf_preview_state_error(file_id, &file.state));
+    }
+
+    let path = PathBuf::from(&file.display_path);
+    if !path
+        .extension()
+        .and_then(|ext| ext.to_str())
+        .is_some_and(|ext| ext.eq_ignore_ascii_case("pdf"))
+    {
+        return Err(format!(
+            "cached path for file id {file_id} is not a PDF: {}",
+            path.display()
+        ));
+    }
+    let metadata = std::fs::metadata(&path).map_err(|error| {
+        format!(
+            "cannot read PDF for file id {file_id} at {}: {error}",
+            path.display()
+        )
+    })?;
+    if !metadata.is_file() {
+        return Err(format!(
+            "cached path for file id {file_id} is not a regular file: {}",
+            path.display()
+        ));
+    }
+    let actual_size = metadata.len();
+    let actual_mtime_ns = file_mtime_ns(&metadata);
+    let indexed_size = u64::try_from(file.size_bytes).ok();
+    if indexed_size != Some(actual_size) || file.mtime_ns != actual_mtime_ns {
+        return Err(format!(
+            "PDF for file id {file_id} changed on disk since it was indexed \
+             (indexed {} bytes, mtime {:?}; now {} bytes, mtime {:?}); \
+             refusing to render, use the cached summary or text",
+            file.size_bytes, file.mtime_ns, actual_size, actual_mtime_ns
+        ));
+    }
+    if actual_size > max_size {
+        return Err(format!(
+            "PDF for file id {file_id} is {actual_size} bytes, above the {max_size} byte limit"
+        ));
+    }
+    Ok(path)
+}
+
+#[tauri::command]
+pub async fn pdf_preview_pages(
+    file_id: i64,
+    state: State<'_, AppState>,
+) -> Result<Vec<Option<[f32; 2]>>, String> {
+    let database = state.database.clone();
+    let max_size = state.config.max_file_size_bytes;
+    with_db(database, move |db| {
+        let path = pdf_preview_path(db, file_id, max_size)?;
+        let engine = indexfox_extract::pdf::PdfEngine::bind(None)
+            .map_err(|error| format!("PDFium is unavailable: {error}"))?;
+        let sizes = engine
+            .page_sizes(&path)
+            .map_err(|error| format!("cannot read PDF pages for file id {file_id}: {error}"))?;
+        if sizes.is_empty() {
+            return Err("PDF 没有可显示的页面。".into());
+        }
+        Ok(sizes)
+    })
+    .await
+}
+
 #[tauri::command]
 pub async fn render_pdf_page(
     file_id: i64,
     page: u32,
+    highlight: Option<String>,
     state: State<'_, AppState>,
 ) -> Result<tauri::ipc::Response, String> {
-    if page == 0 {
-        return Err("PDF page must be 1 or greater".to_string());
-    }
+    let page = u16::try_from(page)
+        .ok()
+        .filter(|page| *page != 0)
+        .ok_or_else(|| format!("PDF page {page} is out of range"))?;
     let database = state.database.clone();
     let max_file_size_bytes = state.config.max_file_size_bytes;
     let bytes = with_db(database, move |db| {
-        let file = db
-            .file_by_id(file_id)
-            .map_err(|error| format!("cannot read file {file_id}: {error}"))?
-            .ok_or_else(|| format!("file id {file_id} not found"))?;
-
-        if !file.ext.eq_ignore_ascii_case("pdf") {
-            return Err(format!(
-                "file id {file_id} has extension {:?}, not pdf",
-                file.ext
-            ));
-        }
-        if file.state != "indexed" {
-            return Err(pdf_preview_state_error(file_id, &file.state));
-        }
-
-        // The source path comes only from the cached file row; no caller path
-        // is accepted. The file is opened read-only.
-        let path = PathBuf::from(&file.display_path);
-        if !path
-            .extension()
-            .and_then(|ext| ext.to_str())
-            .is_some_and(|ext| ext.eq_ignore_ascii_case("pdf"))
-        {
-            return Err(format!(
-                "cached path for file id {file_id} is not a PDF: {}",
-                path.display()
-            ));
-        }
-        let metadata = std::fs::metadata(&path).map_err(|error| {
-            format!(
-                "cannot read PDF for file id {file_id} at {}: {error}",
-                path.display()
-            )
-        })?;
-        if !metadata.is_file() {
-            return Err(format!(
-                "cached path for file id {file_id} is not a regular file: {}",
-                path.display()
-            ));
-        }
-        let actual_size = metadata.len();
-        let actual_mtime_ns = file_mtime_ns(&metadata);
-        let indexed_size = u64::try_from(file.size_bytes).ok();
-        if indexed_size != Some(actual_size) || file.mtime_ns != actual_mtime_ns {
-            return Err(format!(
-                "PDF for file id {file_id} changed on disk since it was indexed \
-                 (indexed {} bytes, mtime {:?}; now {} bytes, mtime {:?}); \
-                 refusing to render, use the cached summary or text",
-                file.size_bytes, file.mtime_ns, actual_size, actual_mtime_ns
-            ));
-        }
-        if metadata.len() > max_file_size_bytes {
-            return Err(format!(
-                "PDF for file id {file_id} is {} bytes, above the {} byte limit",
-                metadata.len(),
-                max_file_size_bytes
-            ));
-        }
-
+        let path = pdf_preview_path(db, file_id, max_file_size_bytes)?;
         let engine = indexfox_extract::pdf::PdfEngine::bind(None)
             .map_err(|error| format!("PDFium is unavailable: {error}"))?;
-        let page_count = engine
-            .page_count(&path)
-            .map_err(|error| format!("cannot read PDF page count for file id {file_id}: {error}"))?;
-        if page > u32::from(page_count) {
-            return Err(format!(
-                "page {page} is out of range; file id {file_id} at {} has {page_count} pages",
-                path.display()
-            ));
-        }
 
         let output = tempfile::Builder::new()
             .prefix("indexfox-pdf-preview-")
@@ -702,7 +750,7 @@ pub async fn render_pdf_page(
             .tempfile()
             .map_err(|error| format!("cannot create temporary PDF render file: {error}"))?;
         engine
-            .render_page_png(&path, page as u16, 1600, output.path())
+            .render_page_png_with_highlight(&path, page, 1600, output.path(), highlight.as_deref())
             .map_err(|error| {
                 format!(
                     "cannot render page {page} of file id {file_id} at {}: {error}",

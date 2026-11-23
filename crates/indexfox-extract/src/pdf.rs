@@ -238,6 +238,7 @@ impl PdfEngine {
                 render_width,
                 settings.max_pixels(),
                 png.path(),
+                None,
             ) {
                 Ok(_) => jobs.push(PendingJob {
                     state_index,
@@ -338,6 +339,24 @@ impl PdfEngine {
         Ok(document.pages().len())
     }
 
+    pub fn page_sizes(&self, path: &Path) -> Result<Vec<Option<[f32; 2]>>> {
+        let document = self
+            .pdfium
+            .load_pdf_from_file(path, None)
+            .map_err(pdf_error)?;
+        let pages = document.pages();
+        Ok(pages
+            .as_range()
+            .map(|index| {
+                let rect = pages.page_size(index).ok()?;
+                let width = rect.width().value;
+                let height = rect.height().value;
+                (width.is_finite() && height.is_finite() && width > 0.0 && height > 0.0)
+                    .then_some([width, height])
+            })
+            .collect())
+    }
+
     /// Render one 1-based page to a PNG. Returns the rendered pixel size.
     pub fn render_page_png(
         &self,
@@ -345,6 +364,18 @@ impl PdfEngine {
         page_number: u16,
         target_width: i32,
         output: &Path,
+    ) -> Result<(u32, u32)> {
+        self.render_page_png_with_highlight(path, page_number, target_width, output, None)
+    }
+
+    /// Render a page with the literal native-text matches highlighted in the PNG.
+    pub fn render_page_png_with_highlight(
+        &self,
+        path: &Path,
+        page_number: u16,
+        target_width: i32,
+        output: &Path,
+        highlight: Option<&str>,
     ) -> Result<(u32, u32)> {
         let document = self
             .pdfium
@@ -359,7 +390,14 @@ impl PdfEngine {
             )));
         }
         let page = pages.get(index).map_err(pdf_error)?;
-        self.render_page_to_png(&page, page_number, target_width, MAX_RENDER_PIXELS, output)
+        self.render_page_to_png(
+            &page,
+            page_number,
+            target_width,
+            MAX_RENDER_PIXELS,
+            output,
+            highlight,
+        )
     }
 
     fn render_page_to_png(
@@ -369,6 +407,7 @@ impl PdfEngine {
         target_width: i32,
         max_pixels: u64,
         output: &Path,
+        highlight: Option<&str>,
     ) -> Result<(u32, u32)> {
         // Bound the pixel size before PDFium allocates the bitmap. A portrait
         // page with an extreme height/width ratio is scaled down as a whole so
@@ -388,21 +427,81 @@ impl PdfEngine {
                 page.height().value
             ))
         })?;
-        let bitmap = page
-            .render_with_config(
-                &PdfRenderConfig::new()
-                    .set_target_width(render_width)
-                    .set_maximum_width(MAX_RENDER_WIDTH)
-                    .set_maximum_height(MAX_RENDER_HEIGHT),
-            )
-            .map_err(pdf_error)?;
+        let config = PdfRenderConfig::new()
+            .set_target_width(render_width)
+            .set_maximum_width(MAX_RENDER_WIDTH)
+            .set_maximum_height(MAX_RENDER_HEIGHT);
+        let bitmap = page.render_with_config(&config).map_err(pdf_error)?;
         let size = (bitmap.width() as u32, bitmap.height() as u32);
-        bitmap
-            .as_image()
+        let mut image = bitmap.as_image();
+        if let (Some(highlight), Some(pixels)) = (highlight, image.as_mut_rgba8()) {
+            draw_text_highlights(page, &config, pixels, highlight);
+        }
+        image
             .save(output)
             .map_err(|error| ExtractError::Image(error.to_string()))?;
         Ok(size)
     }
+}
+
+fn draw_text_highlights(
+    page: &PdfPage<'_>,
+    config: &PdfRenderConfig,
+    image: &mut image::RgbaImage,
+    highlight: &str,
+) {
+    let Ok(text) = page.text() else { return };
+    let Ok(matches) = text.search(highlight, &PdfSearchOptions::new().match_case(true)) else {
+        return;
+    };
+    for segments in matches.iter(PdfSearchDirection::SearchForward) {
+        for rect in merge_highlight_boxes(segments.iter().map(|segment| segment.bounds())) {
+            let padding = rect.height() * 0.08;
+            let (Ok((x1, y1)), Ok((x2, y2))) = (
+                page.points_to_pixels(rect.left() - padding, rect.top() + padding, config),
+                page.points_to_pixels(rect.right() + padding, rect.bottom() - padding, config),
+            ) else {
+                continue;
+            };
+            let x = x1.min(x2).max(0) as u32..(x1.max(x2).max(0) as u32).min(image.width());
+            let y = y1.min(y2).max(0) as u32..(y1.max(y2).max(0) as u32).min(image.height());
+            for row in y {
+                for col in x.clone() {
+                    let pixel = image.get_pixel_mut(col, row);
+                    for (channel, tint) in pixel.0.iter_mut().zip([255_u16, 210, 30]) {
+                        *channel = ((u16::from(*channel) * 2 + tint) / 3) as u8;
+                    }
+                }
+            }
+        }
+    }
+}
+
+// Merge in page coordinates so the same line remains a single block when
+// PDFium maps it into a rotated preview. Each call handles one search hit.
+fn merge_highlight_boxes(boxes: impl Iterator<Item = PdfRect>) -> Vec<PdfRect> {
+    let mut lines: Vec<PdfRect> = Vec::new();
+    for bounds in boxes.filter(|bounds| bounds.width().value > 0.0 && bounds.height().value > 0.0) {
+        let Some(previous) = lines.last_mut() else {
+            lines.push(bounds);
+            continue;
+        };
+        let overlap = previous.top().min(bounds.top()) - previous.bottom().max(bounds.bottom());
+        let gap = previous.left().max(bounds.left()) - previous.right().min(bounds.right());
+        if overlap >= previous.height().min(bounds.height()) * 0.5
+            && gap <= previous.height().max(bounds.height())
+        {
+            *previous = PdfRect::new(
+                previous.bottom().min(bounds.bottom()),
+                previous.left().min(bounds.left()),
+                previous.top().max(bounds.top()),
+                previous.right().max(bounds.right()),
+            );
+        } else {
+            lines.push(bounds);
+        }
+    }
+    lines
 }
 
 struct PageState {
@@ -532,6 +631,24 @@ fn pdf_error(error: PdfiumError) -> ExtractError {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn merges_adjacent_glyph_boxes_without_joining_lines_or_columns() {
+        let first = PdfRect::new_from_values(20.0, 10.0, 30.0, 15.0);
+        let second = PdfRect::new_from_values(21.0, 17.0, 32.0, 22.0);
+        let third = PdfRect::new_from_values(20.0, 24.0, 30.0, 28.0);
+        let other_column = PdfRect::new_from_values(20.0, 60.0, 30.0, 69.0);
+        let next_line = PdfRect::new_from_values(7.0, 10.0, 17.0, 28.0);
+
+        assert_eq!(
+            merge_highlight_boxes([first, second, third, other_column, next_line].into_iter()),
+            vec![
+                PdfRect::new_from_values(20.0, 10.0, 32.0, 28.0),
+                other_column,
+                next_line,
+            ]
+        );
+    }
     use std::collections::HashMap;
     use std::fs;
     use std::sync::Mutex;

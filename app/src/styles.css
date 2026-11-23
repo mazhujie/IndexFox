@@ -1350,6 +1350,17 @@ kbd {
   gap: 6px;
 }
 
+.preview-file-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.preview-file-actions .error-text {
+  flex-basis: 100%;
+  font-size: 10.5px;
+}
+
 .hit-nav {
   display: inline-flex;
   align-items: center;
@@ -1534,11 +1545,15 @@ kbd {
 }
 
 .pdf-body {
-  overflow: auto;
+  padding: 0;
+  overflow-x: hidden;
+  overflow-anchor: none;
+  scrollbar-gutter: stable;
 }
 
 .pdf-toolbar {
-  margin-bottom: 10px;
+  flex: 0 0 auto;
+  padding: 7px 12px;
   display: flex;
   align-items: center;
   flex-wrap: wrap;
@@ -1565,20 +1580,37 @@ kbd {
 }
 
 .pdf-figure {
+  position: absolute;
+  inset-inline: 0;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 4px;
+}
+
+.pdf-pages {
+  position: relative;
+}
+
+.pdf-page-frame {
+  width: 100%;
+  display: grid;
+  grid: minmax(0, 1fr) / minmax(0, 1fr);
+  place-items: center;
+  overflow: auto;
+  border-radius: 3px;
+  background: var(--bg-input);
 }
 
 .pdf-page-image {
-  width: auto;
-  max-width: 100%;
-  height: auto;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
   border: 1px solid var(--border-strong);
   border-radius: 3px;
   background: #fff;
-  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.45);
 }
 
 .pdf-figure figcaption {

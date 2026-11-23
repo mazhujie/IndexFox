@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import type {
   HistorySettings,
+  PdfPageSize,
   PreviewText,
   SearchRequest,
   SearchResponse,
@@ -78,8 +79,14 @@ export const api = {
   previewText(fileId: number, chunkId: number | null): Promise<PreviewText> {
     return invoke<PreviewText>("preview_text", { fileId, chunkId });
   },
-  async renderPdfPage(fileId: number, page: number): Promise<Uint8Array> {
-    const raw = await invoke<unknown>("render_pdf_page", { fileId, page });
+  openIndexedFile(fileId: number, expectedPath: string, action: "open" | "reveal"): Promise<void> {
+    return invoke<void>("open_indexed_file", { fileId, expectedPath, action });
+  },
+  pdfPreviewPages(fileId: number): Promise<PdfPageSize[]> {
+    return invoke<PdfPageSize[]>("pdf_preview_pages", { fileId });
+  },
+  async renderPdfPage(fileId: number, page: number, highlight: string | null): Promise<Uint8Array> {
+    const raw = await invoke<unknown>("render_pdf_page", { fileId, page, highlight });
     return toBytes(raw);
   },
   historySettings(): Promise<HistorySettings> {

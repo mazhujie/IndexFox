@@ -2,6 +2,7 @@
 
 mod commands;
 mod desktop;
+mod file_actions;
 mod scheduler;
 mod state;
 mod storage;
@@ -39,7 +40,9 @@ pub fn run() {
             commands::index_folder,
             commands::remove_source,
             commands::preview_text,
+            commands::pdf_preview_pages,
             commands::render_pdf_page,
+            commands::open_indexed_file,
             commands::history_settings,
             commands::set_history_enabled,
             commands::clear_history,

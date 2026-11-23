@@ -120,12 +120,7 @@ export interface PreviewState {
   error: string | null;
 }
 
-export interface PdfPageState {
-  status: "idle" | "loading" | "ready" | "error";
-  url: string | null;
-  page: number | null;
-  error: string | null;
-}
+export type PdfPageSize = [width: number, height: number] | null;
 
 export interface SearchSnapshot {
   query: string;

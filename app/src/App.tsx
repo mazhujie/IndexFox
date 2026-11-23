@@ -15,7 +15,6 @@ import type {
   FileResult,
   HistoryItem,
   HistorySettings,
-  PdfPageState,
   PreviewState,
   SearchHit,
   SearchRequest,
@@ -60,13 +59,6 @@ const IDLE_PREVIEW: PreviewState = {
   error: null,
 };
 
-const IDLE_PDF: PdfPageState = {
-  status: "idle",
-  url: null,
-  page: null,
-  error: null,
-};
-
 function snapshotOf(draft: DraftSearch): SearchSnapshot {
   return {
     query: draft.query,
@@ -80,18 +72,6 @@ function snapshotOf(draft: DraftSearch): SearchSnapshot {
 
 function firstHit(file: FileResult): SearchHit | null {
   return file.hits.find((hit) => hit.kind !== "filename" && hit.chunk_id > 0) ?? file.hits[0] ?? null;
-}
-
-function pdfLocatorPage(hit: SearchHit | null, preview: PreviewState): number {
-  if (hit?.locator?.kind === "pdf_page") return hit.locator.page;
-  if (preview.data?.locator?.kind === "pdf_page") return preview.data.locator.page;
-  return 1;
-}
-
-function copyBytes(bytes: Uint8Array): ArrayBuffer {
-  const copy = new Uint8Array(bytes.byteLength);
-  copy.set(bytes);
-  return copy.buffer;
 }
 
 export default function App() {
@@ -129,10 +109,8 @@ export default function App() {
   const [selectedHitKey, setSelectedHitKey] = useState<string | null>(null);
   const [preview, setPreview] = useState<PreviewState>(IDLE_PREVIEW);
   const [previewRetry, setPreviewRetry] = useState(0);
-  const [pdf, setPdf] = useState<PdfPageState>(IDLE_PDF);
-  const [pdfRetry, setPdfRetry] = useState(0);
   const [pdfView, setPdfView] = useState<"page" | "text">("page");
-  const [pdfPageOverride, setPdfPageOverride] = useState<number | null>(null);
+  const [pdfNavigation, setPdfNavigation] = useState(0);
 
   const sourceListTokenRef = useRef(0);
   const requestCounterRef = useRef(1);
@@ -142,7 +120,6 @@ export default function App() {
     cancelled: boolean;
   } | null>(null);
   const previewTokenRef = useRef(0);
-  const pdfTokenRef = useRef(0);
   const composingRef = useRef(false);
   const compositionEndedAtRef = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -208,8 +185,6 @@ export default function App() {
       ? activeHit.chunk_id
       : null;
   const selectedFileIdValue = selectedFile?.file_id ?? null;
-  const isPdf = selectedFile?.ext.toLowerCase() === "pdf";
-  const pdfPage = pdfPageOverride ?? pdfLocatorPage(activeHit, preview);
 
   useEffect(() => {
     const token = previewTokenRef.current + 1;
@@ -240,39 +215,6 @@ export default function App() {
     };
   }, [selectedFileIdValue, previewChunkId, previewRetry]);
 
-  useEffect(() => {
-    const token = pdfTokenRef.current + 1;
-    pdfTokenRef.current = token;
-    if (selectedFileIdValue === null || !isPdf || pdfView !== "page") {
-      setPdf(IDLE_PDF);
-      return;
-    }
-    let cancelledRequest = false;
-    let objectUrl: string | null = null;
-    setPdf({ status: "loading", url: null, page: pdfPage, error: null });
-    api
-      .renderPdfPage(selectedFileIdValue, pdfPage)
-      .then((bytes) => {
-        if (cancelledRequest || pdfTokenRef.current !== token) return;
-        const blob = new Blob([copyBytes(bytes)], { type: "image/png" });
-        objectUrl = URL.createObjectURL(blob);
-        setPdf({ status: "ready", url: objectUrl, page: pdfPage, error: null });
-      })
-      .catch((error) => {
-        if (cancelledRequest || pdfTokenRef.current !== token) return;
-        setPdf({
-          status: "error",
-          url: null,
-          page: pdfPage,
-          error: errorMessage(error),
-        });
-      });
-    return () => {
-      cancelledRequest = true;
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [selectedFileIdValue, isPdf, pdfView, pdfPage, pdfRetry]);
-
   function patchDraft(patch: Partial<DraftSearch>) {
     setDraft((previous) => ({ ...previous, ...patch }));
     setQueryError(null);
@@ -290,7 +232,7 @@ export default function App() {
     const hit = preferredHit ?? firstHit(file);
     setSelectedFileId(file.file_id);
     setSelectedHitKey(hit ? hitKey(file.file_id, hit) : null);
-    setPdfPageOverride(null);
+    setPdfNavigation((value) => value + 1);
     if (changedFile) setPdfView("page");
   }
 
@@ -323,8 +265,6 @@ export default function App() {
     setSelectedFileId(null);
     setSelectedHitKey(null);
     setPreview(IDLE_PREVIEW);
-    setPdf(IDLE_PDF);
-    setPdfPageOverride(null);
 
     const request: SearchRequest = {
       requestId,
@@ -786,13 +726,10 @@ export default function App() {
           activeHit={activeHit}
           selectedHitKey={selectedHitKey}
           preview={preview}
-          pdf={pdf}
           pdfView={pdfView}
-          pdfPage={pdfPage}
+          pdfNavigation={pdfNavigation}
           onPdfViewChange={setPdfView}
-          onPdfPageChange={(page) => setPdfPageOverride(page)}
           onRetryPreview={() => setPreviewRetry((value) => value + 1)}
-          onRetryPdf={() => setPdfRetry((value) => value + 1)}
           onSelectHit={(hit) => applySelection(selectedFile, hit)}
         />
       </main>
