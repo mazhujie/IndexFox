@@ -31,6 +31,10 @@ interface PreviewPaneProps {
   preview: PreviewState;
   pdfView: "page" | "text";
   pdfNavigation: number;
+  pdfFullscreen: boolean;
+  fullscreenBusy: boolean;
+  fullscreenError: string | null;
+  onToggleFullscreen: () => void;
   onPdfViewChange: (view: "page" | "text") => void;
   onRetryPreview: () => void;
   onSelectHit: (hit: SearchHit) => void;
@@ -43,6 +47,10 @@ export function PreviewPane({
   preview,
   pdfView,
   pdfNavigation,
+  pdfFullscreen,
+  fullscreenBusy,
+  fullscreenError,
+  onToggleFullscreen,
   onPdfViewChange,
   onRetryPreview,
   onSelectHit,
@@ -138,6 +146,18 @@ export function PreviewPane({
               </button>
             </div>
           )}
+          {isPdf && pdfView === "page" && (
+            <button
+              type="button"
+              className="mini-button"
+              aria-pressed={pdfFullscreen}
+              title={pdfFullscreen ? "按 Esc 退出全屏" : "将 PDF 显示在整个屏幕"}
+              disabled={fullscreenBusy}
+              onClick={onToggleFullscreen}
+            >
+              {pdfFullscreen ? "退出全屏" : "全屏"}
+            </button>
+          )}
           {hits.length > 0 && (
             <div className="hit-nav" role="group" aria-label="命中位置导航">
               <button
@@ -161,6 +181,7 @@ export function PreviewPane({
               </button>
             </div>
           )}
+          {isPdf && fullscreenError && <p className="error-text" role="alert">{fullscreenError}</p>}
         </div>
       </div>
 
@@ -190,6 +211,7 @@ export function PreviewPane({
           file={selectedFile}
           activeHit={activeHit}
           navigation={pdfNavigation}
+          fullscreenTransition={fullscreenBusy}
           onOpenText={cacheAvailable ? () => onPdfViewChange("text") : undefined}
         />
       ) : (

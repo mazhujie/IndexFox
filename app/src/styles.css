@@ -493,11 +493,57 @@ kbd {
 }
 
 .workspace {
+  --sources-min: 170px;
+  --results-min: 220px;
+  --preview-min: 270px;
+  --divider-width: 8px;
+  --sources-default: 250px;
+  --results-default: 400px;
+  --pane-space: calc(100% - var(--divider-width) - var(--divider-width));
+  --sources-track: clamp(var(--sources-min), var(--sources-width, var(--sources-default)),
+    calc(var(--pane-space) - var(--results-min) - var(--preview-min)));
+  --results-track: clamp(var(--results-min), var(--results-width, var(--results-default)),
+    calc(var(--pane-space) - var(--sources-track) - var(--preview-min)));
   flex: 1 1 auto;
   min-height: 0;
   display: grid;
-  grid-template-columns: 250px minmax(300px, 400px) minmax(0, 1fr);
+  grid-template-columns: var(--sources-track) var(--divider-width) var(--results-track)
+    var(--divider-width) minmax(var(--preview-min), 1fr);
   overflow: hidden;
+}
+
+.workspace-divider {
+  display: grid;
+  place-items: stretch center;
+  background: var(--bg-app);
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.workspace-divider::before {
+  content: "";
+  width: 1px;
+  background: var(--border-strong);
+}
+
+.workspace-divider:hover,
+.workspace-divider:focus-visible {
+  background: var(--accent-soft);
+  outline: none;
+}
+
+.workspace-divider:hover::before,
+.workspace-divider:focus-visible::before {
+  background: var(--accent);
+}
+
+.workspace.resizing {
+  cursor: col-resize;
+  user-select: none;
+}
+
+.workspace.resizing > .pane {
+  pointer-events: none;
 }
 
 .pane {
@@ -512,6 +558,30 @@ kbd {
 
 .pane:last-child {
   border-right: 0;
+}
+
+.workspace > .pane {
+  border-right: 0;
+}
+
+.app-shell.pdf-fullscreen > .search-header,
+.app-shell.pdf-fullscreen > .status-bar,
+.pdf-fullscreen .workspace > :not(.preview-pane) {
+  display: none;
+}
+
+.pdf-fullscreen .workspace {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.pdf-fullscreen .preview-pane {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+  border: 0;
 }
 
 .pane-header {
@@ -1676,7 +1746,8 @@ kbd {
 
 @media (max-width: 1200px) {
   .workspace {
-    grid-template-columns: 218px minmax(280px, 350px) minmax(0, 1fr);
+    --sources-default: 218px;
+    --results-default: 350px;
   }
 }
 
@@ -1689,6 +1760,10 @@ kbd {
     display: flex;
     flex-direction: column;
     overflow-y: auto;
+  }
+
+  .workspace-divider {
+    display: none;
   }
 
   .pane {

@@ -51,10 +51,11 @@ interface PdfDocumentPreviewProps {
   file: FileResult;
   activeHit: SearchHit | null;
   navigation: number;
+  fullscreenTransition: boolean;
   onOpenText?: () => void;
 }
 
-export function PdfDocumentPreview({ file, activeHit, navigation, onOpenText }: PdfDocumentPreviewProps) {
+export function PdfDocumentPreview({ file, activeHit, navigation, fullscreenTransition, onOpenText }: PdfDocumentPreviewProps) {
   const scrollRef = useRef<HTMLDivElement>(null);
   const [viewport, setViewport] = useState(EMPTY_VIEWPORT);
   const [sizes, setSizes] = useState<PdfPageSize[]>([]);
@@ -62,8 +63,8 @@ export function PdfDocumentPreview({ file, activeHit, navigation, onOpenText }: 
   const [retry, setRetry] = useState(0);
   const [pageDraft, setPageDraft] = useState<string | null>(null);
   const layout = useMemo(() => pagePositions(sizes, viewport.width), [sizes, viewport.width]);
-  const previousLayout = useRef<PagePosition[]>([]);
-  const previousNavigation = useRef(navigation);
+  const previous = useRef<{ layout: PagePosition[]; height: number; navigation: number } | null>(null);
+  const fullscreenAnchor = useRef<{ index: number; fraction: number } | null>(null);
   const hitPage = activeHit?.locator?.kind === "pdf_page" ? activeHit.locator.page : 1;
   const fileId = file.file_id;
 
@@ -93,46 +94,76 @@ export function PdfDocumentPreview({ file, activeHit, navigation, onOpenText }: 
     return () => { cancelled = true; };
   }, [fileId, retry]);
 
-  const syncViewport = useCallback(() => {
+  const syncViewport = useCallback((preserveReadingPosition = true) => {
     const element = scrollRef.current;
     if (!element) return;
-    const { clientWidth: width, clientHeight: height, scrollTop: top } = element;
-    setViewport((current) => current.width === width && current.height === height && current.top === top
-      ? current : { width, height, top });
+    const { clientWidth: width, clientHeight: height, scrollTop } = element;
+    setViewport((current) => {
+      if (current.width !== width || current.height !== height) {
+        // The browser may clamp scrollTop during a resize. Re-anchor from
+        // the old reading position once the new page layout is available.
+        return { width, height, top: preserveReadingPosition ? current.top : scrollTop };
+      }
+      return current.top === scrollTop ? current : { width, height, top: scrollTop };
+    });
   }, []);
 
   useLayoutEffect(() => {
     const element = scrollRef.current;
     if (!element) return;
     syncViewport();
-    const observer = new ResizeObserver(syncViewport);
+    const observer = new ResizeObserver(() => syncViewport());
     observer.observe(element);
     return () => observer.disconnect();
   }, [syncViewport]);
 
   useLayoutEffect(() => {
+    if (fullscreenTransition) {
+      const pages = previous.current?.layout;
+      const element = scrollRef.current;
+      if (element && pages?.length) {
+        const index = pageAtOffset(pages, element.scrollTop);
+        const page = pages[index];
+        fullscreenAnchor.current = {
+          index,
+          fraction: (element.scrollTop - page.top) / (page.height + PAGE_GAP),
+        };
+      }
+      return;
+    }
+    // WebView2 can deliver the final resize after the native command returns.
+    const timer = window.setTimeout(() => { fullscreenAnchor.current = null; }, 300);
+    return () => window.clearTimeout(timer);
+  }, [fullscreenTransition]);
+
+  useLayoutEffect(() => {
     const element = scrollRef.current;
     if (!element || !layout.length) return;
-    const old = previousLayout.current;
-    if (!old.length || previousNavigation.current !== navigation) {
+    const old = previous.current;
+    if (!old || old.navigation !== navigation) {
+      fullscreenAnchor.current = null;
       element.scrollTop = layout[Math.max(1, Math.min(hitPage, layout.length)) - 1].top;
       setPageDraft(null);
-    } else if (old !== layout) {
-      const index = pageAtOffset(old, element.scrollTop);
-      const offset = (element.scrollTop - old[index].top) / (old[index].height + PAGE_GAP);
+    } else if (old.layout !== layout || old.height !== viewport.height) {
+      const anchor = fullscreenAnchor.current;
+      const index = Math.min(anchor?.index ?? pageAtOffset(old.layout, viewport.top), layout.length - 1);
+      const page = old.layout[index];
+      const offset = anchor?.fraction ?? (viewport.top - page.top) / (page.height + PAGE_GAP);
       element.scrollTop = layout[index].top + offset * (layout[index].height + PAGE_GAP);
+    } else {
+      return;
     }
-    previousLayout.current = layout;
-    previousNavigation.current = navigation;
-    syncViewport();
-  }, [hitPage, layout, navigation, syncViewport]);
+    previous.current = { layout, height: viewport.height, navigation };
+    syncViewport(false);
+  }, [hitPage, layout, navigation, syncViewport, viewport.height, viewport.top]);
 
   function submitPage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const page = Number.parseInt(pageDraft ?? "", 10);
     if (scrollRef.current && Number.isFinite(page) && layout.length > 0) {
+      fullscreenAnchor.current = null;
       scrollRef.current.scrollTop = layout[Math.max(1, Math.min(page, layout.length)) - 1].top;
-      syncViewport();
+      syncViewport(false);
     }
     setPageDraft(null);
   }
@@ -171,7 +202,8 @@ export function PdfDocumentPreview({ file, activeHit, navigation, onOpenText }: 
       <div
         className="pane-body preview-body pdf-body"
         ref={scrollRef}
-        onScroll={syncViewport}
+        onScroll={() => syncViewport()}
+        onWheel={() => { fullscreenAnchor.current = null; }}
         tabIndex={0}
         role="region"
         aria-label="PDF 原页连续预览"

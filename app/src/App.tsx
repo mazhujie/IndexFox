@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { FormEvent, KeyboardEvent as ReactKeyboardEvent } from "react";
+import { flushSync } from "react-dom";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { api, errorMessage, parseErrorPosition } from "./api";
 import indexFoxIcon from "./assets/indexfox-icon.png";
 import { HistoryPopover } from "./components/HistoryPopover";
@@ -7,6 +9,7 @@ import { PreviewPane } from "./components/PreviewPane";
 import { ResultsPane } from "./components/ResultsPane";
 import { SettingsDialog } from "./components/SettingsDialog";
 import { SourcesPane } from "./components/SourcesPane";
+import { WorkspaceLayout } from "./components/WorkspaceLayout";
 import { loadAndApplyDesktopSettings, settingsApi } from "./settings";
 import type { IndexRuntime } from "./settings";
 import { hitKey, queryErrorContext } from "./text";
@@ -111,6 +114,10 @@ export default function App() {
   const [previewRetry, setPreviewRetry] = useState(0);
   const [pdfView, setPdfView] = useState<"page" | "text">("page");
   const [pdfNavigation, setPdfNavigation] = useState(0);
+  const [pdfFullscreen, setPdfFullscreen] = useState(false);
+  const [fullscreenBusy, setFullscreenBusy] = useState(false);
+  const [fullscreenError, setFullscreenError] = useState<string | null>(null);
+  const fullscreenPending = useRef(false);
 
   const sourceListTokenRef = useRef(0);
   const requestCounterRef = useRef(1);
@@ -123,6 +130,42 @@ export default function App() {
   const composingRef = useRef(false);
   const compositionEndedAtRef = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
+
+  const changeFullscreen = useCallback(async (fullscreen: boolean) => {
+    if (fullscreenPending.current) return false;
+    fullscreenPending.current = true;
+    // Let the PDF preview save its anchor before the native window can resize.
+    flushSync(() => setFullscreenBusy(true));
+    setFullscreenError(null);
+    try {
+      await getCurrentWindow().setFullscreen(fullscreen);
+      setPdfFullscreen(fullscreen);
+      return true;
+    } catch (error) {
+      setFullscreenError(`切换 PDF 全屏失败：${errorMessage(error)}`);
+      return false;
+    } finally {
+      fullscreenPending.current = false;
+      setFullscreenBusy(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!pdfFullscreen) return;
+    function exitOnEscape(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        event.preventDefault();
+        void changeFullscreen(false);
+      }
+    }
+    window.addEventListener("keydown", exitOnEscape);
+    return () => window.removeEventListener("keydown", exitOnEscape);
+  }, [changeFullscreen, pdfFullscreen]);
+
+  async function changePdfView(view: "page" | "text") {
+    if (view === "text" && pdfFullscreen && !(await changeFullscreen(false))) return;
+    setPdfView(view);
+  }
 
   const loadSources = useCallback(async () => {
     const token = sourceListTokenRef.current + 1;
@@ -467,7 +510,7 @@ export default function App() {
       : null;
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${pdfFullscreen ? " pdf-fullscreen" : ""}`}>
       <section className="search-header" aria-label="检索条件">
         <form className="search-form" onSubmit={handleSubmit} role="search">
           <img className="search-brand-mark" src={indexFoxIcon} alt="" aria-hidden="true" />
@@ -677,7 +720,7 @@ export default function App() {
         )}
       </section>
 
-      <main className="workspace">
+      <WorkspaceLayout>
         <SourcesPane
           sources={sources}
           sourceError={sourceError}
@@ -728,11 +771,15 @@ export default function App() {
           preview={preview}
           pdfView={pdfView}
           pdfNavigation={pdfNavigation}
-          onPdfViewChange={setPdfView}
+          pdfFullscreen={pdfFullscreen}
+          fullscreenBusy={fullscreenBusy}
+          fullscreenError={fullscreenError}
+          onToggleFullscreen={() => void changeFullscreen(!pdfFullscreen)}
+          onPdfViewChange={(view) => void changePdfView(view)}
           onRetryPreview={() => setPreviewRetry((value) => value + 1)}
           onSelectHit={(hit) => applySelection(selectedFile, hit)}
         />
-      </main>
+      </WorkspaceLayout>
 
       <footer className="status-bar">
         <div className="status-group">
