@@ -9,6 +9,7 @@ interface HistoryPopoverProps {
   onClose: () => void;
   onToggleEnabled: (enabled: boolean) => void;
   onClear: () => void;
+  onDelete: (id: number) => void;
   onApply: (item: HistoryItem) => void;
 }
 
@@ -35,6 +36,7 @@ export function HistoryPopover({
   onClose,
   onToggleEnabled,
   onClear,
+  onDelete,
   onApply,
 }: HistoryPopoverProps) {
   const popoverRef = useRef<HTMLDivElement>(null);
@@ -117,6 +119,15 @@ export function HistoryPopover({
                   <span>{filtersLabel(item)}</span>
                   <span className="history-time">{formatHistoryTime(item.last_used_at)}</span>
                 </span>
+              </button>
+              <button
+                type="button"
+                className="mini-button"
+                aria-label={`删除搜索历史：${item.query_text}`}
+                disabled={busy}
+                onClick={() => onDelete(item.id)}
+              >
+                删除
               </button>
             </li>
           ))}

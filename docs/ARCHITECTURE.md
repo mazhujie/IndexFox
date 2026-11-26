@@ -28,7 +28,7 @@ CLI 和桌面调度器复用同一套扫描和写入逻辑。
 | `extensions` | 大小写不敏感的扩展名白名单，默认覆盖文档、源码、配置和日志文本。 |
 | `excludedDirs` | 目录名精确匹配；含 `*`/`?` 的条目按简单通配符匹配目录名。默认排除 `.git`、`node_modules`、`target` 等。 |
 | `excludeGlobs` | 不含分隔符时匹配文件/目录名；含 `/` 或 `\` 时匹配相对来源根的规范化路径。仅支持 `*`/`?`，无转义和字符类。 |
-| `maxFileSizeBytes` | 单文件上限，默认 100 MB；超限文件只写元数据，状态 `skipped_size`。 |
+| `maxFileSizeBytes` | 单文件索引上限默认 300 MB。超限文件只写元数据，状态为 `skipped_size`。PDF 原页预览使用全局默认上限 300 MB。 |
 | `pollIntervalSecs` | 默认 60 秒；调度器夹取到 5–86400 秒，`set_source_config` 也按此范围校验。 |
 | `enabled` | 停用来源不再自动排队，也不能手动扫描。 |
 

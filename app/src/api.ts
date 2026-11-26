@@ -98,4 +98,7 @@ export const api = {
   clearHistory(): Promise<void> {
     return invoke<void>("clear_history");
   },
+  deleteHistoryItem(id: number): Promise<void> {
+    return invoke<void>("delete_history_item", { id });
+  },
 };

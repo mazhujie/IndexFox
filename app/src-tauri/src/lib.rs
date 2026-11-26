@@ -45,6 +45,7 @@ pub fn run() {
             commands::open_indexed_file,
             commands::history_settings,
             commands::set_history_enabled,
+            commands::delete_history_item,
             commands::clear_history,
             commands::get_index_runtime,
             commands::set_index_paused,

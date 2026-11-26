@@ -1472,7 +1472,7 @@ def main() -> int:
     parser.add_argument("--repeats", default=5, type=int, help="measured search runs per query (default 5)")
     parser.add_argument("--warmup", default=1, type=int, help="unmeasured search runs per query (default 1)")
     parser.add_argument("--limit", default=1_000_000, type=int, help="search result limit (default 1000000)")
-    parser.add_argument("--max-size-mb", default=100, type=int, help="index size limit (default 100)")
+    parser.add_argument("--max-size-mb", default=300, type=int, help="index size limit (default %(default)s)")
     parser.add_argument("--skip-ocr", action="store_true", help="skip the separate OCR sample")
     parser.add_argument("--ocr-sample", default=str(Path(__file__).resolve().parent.parent / "fixtures/pdf/scanned_zh.pdf"), help="synthetic scanned PDF")
     parser.add_argument("--ocr-lang", default=os.environ.get("INDEXFOX_OCR_LANG", "chi_sim+eng"), help="Tesseract languages")

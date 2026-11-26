@@ -1044,15 +1044,21 @@ kbd {
   overflow-y: auto;
 }
 
+.history-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  padding-right: 10px;
+  border-bottom: 1px solid var(--border);
+}
+
 .history-item {
-  width: 100%;
   padding: 8px 10px;
   display: flex;
   flex-direction: column;
   gap: 4px;
   text-align: left;
   border: 0;
-  border-bottom: 1px solid var(--border);
   background: transparent;
   color: var(--text-main);
 }

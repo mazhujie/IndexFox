@@ -437,6 +437,12 @@ impl IndexDb {
         Ok(self.conn.execute("DELETE FROM search_history", [])?)
     }
 
+    pub fn delete_search_history_item(&self, id: i64) -> Result<usize> {
+        Ok(self
+            .conn
+            .execute("DELETE FROM search_history WHERE id = ?1", [id])?)
+    }
+
     /// Queue a job. A job may bind only a file owned by the same source; the
     /// ownership check and insert share one transaction.
     pub fn insert_index_job(
@@ -1666,6 +1672,27 @@ mod tests {
 
         assert_eq!(db.clear_search_history().unwrap(), 100);
         assert!(db.search_history().unwrap().is_empty());
+    }
+
+    #[test]
+    fn deleting_one_history_item_persists_after_reopen() {
+        let (dir, path) = temp_db("delete-history");
+        let mut db = IndexDb::open(&path).unwrap();
+        let keep = db
+            .add_search_history("kernel", SearchMode::Exact, "{}")
+            .unwrap();
+        let remove = db
+            .add_search_history("kernel", SearchMode::Exact, r#"{"ext":["pdf"]}"#)
+            .unwrap();
+        assert_eq!(db.delete_search_history_item(remove).unwrap(), 1);
+        drop(db);
+
+        let db = IndexDb::open(&path).unwrap();
+        let items = db.search_history().unwrap();
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].id, keep);
+        drop(db);
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

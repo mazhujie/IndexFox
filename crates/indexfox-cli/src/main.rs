@@ -29,7 +29,7 @@ struct Cli {
 #[derive(Debug, Subcommand)]
 enum Command {
     /// Index a directory, or one file below it with --file RELATIVE_PATH
-    /// (format whitelist, ignore rules, 100 MB metadata limit).
+    /// (format whitelist, ignore rules, 300 MB default single-file limit).
     Index {
         path: PathBuf,
         /// Index only this path, relative to PATH, without directory reconcile.

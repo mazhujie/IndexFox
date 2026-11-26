@@ -466,14 +466,18 @@ export default function App() {
     }
   }
 
-  async function handleHistoryClear() {
+  async function handleHistoryRemove(id: number | null) {
     setHistoryBusy(true);
     setHistoryError(null);
     try {
-      await api.clearHistory();
-      setHistory((previous) => ({ ...previous, items: [] }));
+      if (id === null) await api.clearHistory();
+      else await api.deleteHistoryItem(id);
+      setHistory((previous) => ({
+        ...previous,
+        items: id === null ? [] : previous.items.filter((item) => item.id !== id),
+      }));
     } catch (error) {
-      setHistoryError(`清空历史失败：${errorMessage(error)}`);
+      setHistoryError(`${id === null ? "清空历史" : "删除记录"}失败：${errorMessage(error)}`);
     } finally {
       setHistoryBusy(false);
     }
@@ -572,7 +576,8 @@ export default function App() {
                 error={historyError}
                 onClose={() => setHistoryOpen(false)}
                 onToggleEnabled={(enabled) => void handleHistoryToggle(enabled)}
-                onClear={() => void handleHistoryClear()}
+                onClear={() => void handleHistoryRemove(null)}
+                onDelete={(id) => void handleHistoryRemove(id)}
                 onApply={handleHistoryApply}
               />
             )}

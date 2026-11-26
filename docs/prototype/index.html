@@ -1227,7 +1227,7 @@
       <span>Q14/Q15 扫描PDF OCR</span><code>采集卡寄存器</code>
     </button>
     <button class="scenario-chip" onclick="runScenario('q19', this)">
-      <span>Q19 >100MB超限文件</span><code>coredump</code>
+      <span>Q19 >300MB超限文件</span><code>coredump</code>
     </button>
     <button class="scenario-chip" onclick="runScenario('q32', this)">
       <span>Q32 系统字体读取与切换</span><code>🔤 系统字体</code>
@@ -1370,7 +1370,7 @@
             <span class="pill-tag" id="countOffline">1</span>
           </div>
           <div class="state-row" data-state="skipped_size" onclick="setStateFilter('skipped_size', this)">
-            <span>🟣 >100MB 仅文件名 (skipped)</span>
+            <span>🟣 >300MB 仅文件名 (skipped)</span>
             <span class="pill-tag" id="countSkipped">1</span>
           </div>
           <div class="state-row" data-state="pending_failed" onclick="setStateFilter('pending_failed', this)">
@@ -1435,7 +1435,7 @@
       <span class="status-sep">|</span>
       <span>真实耗时 <b style="color:var(--accent)" id="statElapsed">14.2 ms</b></span>
       <span class="status-sep">|</span>
-      <span>索引覆盖 <b style="color:var(--green)">8,471</b> / 10,214 文件 <span style="color:var(--text-dim)">(跳过>100MB: 4 · 队列中: 18 · 失败: 3)</span></span>
+      <span>索引覆盖 <b style="color:var(--green)">8,471</b> / 10,214 文件 <span style="color:var(--text-dim)">(跳过>300MB: 4 · 队列中: 18 · 失败: 3)</span></span>
     </div>
     <div class="status-group">
       <span style="font-family:var(--font-mono)" id="dbPathFooter">DB: %LOCALAPPDATA%\IndexFox\data\index.db (SQLite WAL · 单写多读)</span>
@@ -1473,7 +1473,7 @@
 
           <label>单文件大小上限：</label>
           <div style="display:flex;align-items:center;gap:8px;">
-            <input type="number" class="form-input" value="100" style="width:90px;" />
+            <input type="number" class="form-input" value="300" style="width:90px;" />
             <span style="font-size:12px;color:var(--text-muted)">MB (超限文件标记 <code>skipped_size</code>，仅按文件名检索，支持单文件强制索引)</span>
           </div>
 
@@ -1594,7 +1594,7 @@
 
           <label>需求 10 · 单文件上限：</label>
           <div style="display:flex;align-items:center;gap:8px;">
-            <input type="number" class="form-input" value="100" style="width:90px;" />
+            <input type="number" class="form-input" value="300" style="width:90px;" />
             <span style="font-size:12px;color:var(--text-muted)">MB (超限仅索引元数据，支持在预览页单文件强制索引)</span>
           </div>
 
@@ -1895,15 +1895,15 @@
         filename: 'kernel_coredump_202611.log',
         display_path: 'D:\\Docs\\dumps\\kernel_coredump_202611.log',
         ext: 'code',
-        size_bytes: 260046848,
-        size_label: '248.0 MB (>100MB 上限)',
+        size_bytes: 364904448,
+        size_label: '348.0 MB (>300MB 上限)',
         mtime: '2026-11-20 22:10',
         state: 'skipped_size',
         encoding: 'UTF-8 (默认超限跳过正文，仅索引文件名元数据)',
         origin: 'metadata_only',
-        badges: ['>100MB 默认仅文件名可查 (Q19)'],
+        badges: ['>300MB 默认仅文件名可查 (Q19)'],
         lines: [
-          { ln: 1, text: `[COREDUMP HEADER] Linux kernel panic dump — file size 248.0 MB` },
+          { ln: 1, text: `[COREDUMP HEADER] Linux kernel panic dump — file size 348.0 MB` },
           { ln: 2, text: `Call Trace: cam_start_streaming+0x42/0x110 [v4l2_camera_driver]` },
           { ln: 3, text: `Faulting symbol: dma_alloc_coherent() during VIDIOC_STREAMON under 100% memory pressure` }
         ]
@@ -2288,7 +2288,7 @@
           return;
         }
 
-        // >100MB skipped_size files: ONLY match filename! (Req 10 / Q19)
+        // >300MB skipped_size files: ONLY match filename! (Req 10 / Q19)
         if (effectiveState === 'skipped_size') {
           const fnNorm = state.caseSensitive ? doc.filename : doc.filename.toLowerCase();
           const matchedFn = parsed.highlightTerms.some(t => {
@@ -2299,14 +2299,14 @@
             results.push({
               doc,
               effectiveState,
-              matchKind: '>100MB 仅文件名命中',
+              matchKind: '>300MB 仅文件名命中',
               fuzzyNote: null,
               score: 85,
               hitCount: 1,
               matchedTerms: parsed.highlightTerms,
               snippets: [{
-                locator: '元数据索引 (skipped_size · 248.0 MB)',
-                text: `文件名命中 "${doc.filename}"。因超过 100MB 默认上限未建立全文索引，可在右侧预览点击 [强制全文索引]。`
+                locator: '元数据索引 (skipped_size · 348.0 MB)',
+                text: `文件名命中 "${doc.filename}"。因超过 300MB 默认上限未建立全文索引，可在右侧预览点击 [强制全文索引]。`
               }]
             });
             totalSnippets += 1;
@@ -2581,7 +2581,7 @@
           badgesHtml += `<span class="tag tag-offline">⚡ 源已离线 · 缓存快照</span>`;
         }
         if (item.effectiveState === 'skipped_size') {
-          badgesHtml += `<span class="tag tag-skipped">>100MB 仅文件名</span>`;
+          badgesHtml += `<span class="tag tag-skipped">>300MB 仅文件名</span>`;
         }
         if (doc.origin === 'ocr' || doc.origin === 'mixed_ocr') {
           badgesHtml += `<span class="tag tag-ocr">🔍 含 OCR 识别页</span>`;
@@ -2672,12 +2672,12 @@
 
       const container = document.getElementById('previewContainer');
 
-      // Special Case 1: >100MB skipped_size file (Req 10 / Q19)
+      // Special Case 1: >300MB skipped_size file (Req 10 / Q19)
       if (doc.state === 'skipped_size') {
         container.innerHTML = `
           <div class="docx-sheet" style="text-align:center;padding:36px 24px;">
             <div style="font-size:32px;margin-bottom:10px;">📦</div>
-            <h3 style="margin-bottom:8px;">该文件大小 (${doc.size_label}) 超过默认 100 MB 限制</h3>
+            <h3 style="margin-bottom:8px;">该文件大小 (${doc.size_label}) 超过默认 300 MB 限制</h3>
             <p style="color:var(--text-muted);max-width:520px;margin:0 auto 16px;">
               根据需求 10 与验收用例 Q19：超大文件默认状态为 <code>skipped_size</code>，仅建立文件名与元数据索引以保障常规检索与内存安全。您可以对此单文件手动触发强制全文索引（依然受分块内存与超时保护）。
             </p>
@@ -3005,8 +3005,8 @@
       if (!doc) return;
       doc.state = 'indexed';
       doc.encoding = 'UTF-8 (用户已手动强制全文索引 · 分块受内存限额保护)';
-      doc.badges = ['>100MB 已强制全文索引 (Q19)'];
-      showToast(`已完成对 ${doc.filename} (248.0 MB) 的强制分块与全文索引！`);
+      doc.badges = ['>300MB 已强制全文索引 (Q19)'];
+      showToast(`已完成对 ${doc.filename} (348.0 MB) 的强制分块与全文索引！`);
       executeCommittedSearch();
     }
 
@@ -3035,7 +3035,7 @@
         q09: { q: '"Linux kernel"', mode: 'exact', msg: 'Q09/Q12: 双引号连续短语严格匹配，并通过相邻 Chunk 重叠拼接校验跨块边界' },
         q06: { q: '#include OR 100%', mode: 'exact', msg: 'Q06/Q11: 前置 # 与 SQL 通配符 % 均按字面字符参数绑定，绝不触发 LIKE 全表误匹配' },
         q14: { q: '采集卡寄存器', mode: 'exact', msg: 'Q14/Q15: 命中纯扫描 PDF 与混合 PDF 的第 39 页 Tesseract OCR 识别文本层' },
-        q19: { q: 'coredump', mode: 'exact', msg: 'Q19: >100MB 超限文件默认 skipped_size 仅文件名可查，点击右侧预览按钮可强制全文索引' },
+        q19: { q: 'coredump', mode: 'exact', msg: 'Q19: >300MB 超限文件默认 skipped_size 仅文件名可查，点击右侧预览按钮可强制全文索引' },
         q32: { q: 'VIDIOC_STREAMON', mode: 'exact', msg: 'Q32: 打开设置读取本机系统已安装字体，支持实时切换界面字体、代码预览字体及字号' },
         syntax_err: { q: '(Linux OR "kernel', mode: 'exact', msg: 'M2.1: 演示非法查询表达式（引号与括号未闭合），精确报告出错字符位置' }
       };

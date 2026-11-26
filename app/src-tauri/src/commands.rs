@@ -821,6 +821,16 @@ pub async fn set_history_enabled(enabled: bool, state: State<'_, AppState>) -> R
 }
 
 #[tauri::command]
+pub async fn delete_history_item(id: i64, state: State<'_, AppState>) -> Result<(), String> {
+    with_db(state.database.clone(), move |db| {
+        db.delete_search_history_item(id)
+            .map_err(|error| format!("cannot delete search history item: {error}"))?;
+        Ok(())
+    })
+    .await
+}
+
+#[tauri::command]
 pub async fn clear_history(state: State<'_, AppState>) -> Result<(), String> {
     let database = state.database.clone();
     with_db(database, |db| {
